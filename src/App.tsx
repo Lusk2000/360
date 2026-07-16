@@ -1064,7 +1064,7 @@ const ReportsView = ({ clients, tasks, appointments, transactions, dailyReports 
       </div>
 
       {/* Filters */}
-      <Card className="p-4 border-slate-800 bg-slate-900/50 grid grid-cols-2 md:grid-cols-5 gap-4">
+      <Card className="p-4 border-slate-800 bg-slate-900/50 grid grid-cols-2 gap-4">
         <div>
           <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">Data Inicial</label>
           <input type="date" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-300 outline-none focus:border-emerald-500/50" />
@@ -1072,24 +1072,6 @@ const ReportsView = ({ clients, tasks, appointments, transactions, dailyReports 
         <div>
           <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">Data Final</label>
           <input type="date" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-300 outline-none focus:border-emerald-500/50" />
-        </div>
-        <div>
-          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">Usuário</label>
-          <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-300 outline-none focus:border-emerald-500/50 appearance-none">
-            <option value="">Todos os Usuários</option>
-          </select>
-        </div>
-        <div>
-          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">Cliente</label>
-          <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-300 outline-none focus:border-emerald-500/50 appearance-none">
-            <option value="">Todos os Clientes</option>
-          </select>
-        </div>
-        <div>
-          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">Status</label>
-          <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-300 outline-none focus:border-emerald-500/50 appearance-none">
-            <option value="">Qualquer Status</option>
-          </select>
         </div>
       </Card>
 
