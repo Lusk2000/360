@@ -40,12 +40,13 @@ const FERIADOS_2026 = [
 // --- Lista de Responsáveis e Permissões Detalhadas ---
 const USER_PROFILES: any = {
   'lucas360admin@gmail.com': { 
-    role: 'administrator', 
+    role: 'gestor', 
     label: 'Lucas',
     email: 'lucas360admin@gmail.com',
     permissions: { 
       full_access: true, 
       financial: 'view', 
+      reports: 'none',
       agenda: 'full', 
       services: 'full',
       can_delete: true
@@ -58,6 +59,7 @@ const USER_PROFILES: any = {
     permissions: { 
       full_access: true, 
       financial: 'full', 
+      reports: 'full',
       agenda: 'full', 
       services: 'full',
       can_delete: true
@@ -88,7 +90,7 @@ const USER_PROFILES: any = {
     } 
   },
   'luan360@gmail.com': { 
-    role: 'administrator', 
+    role: 'gestor', 
     label: 'Luan',
     email: 'luan360@gmail.com',
     permissions: { 
@@ -107,6 +109,7 @@ const USER_PROFILES: any = {
     permissions: { 
       full_access: true, 
       financial: 'full', 
+      reports: 'full',
       agenda: 'full', 
       services: 'full',
       can_delete: true
@@ -1413,6 +1416,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
     hora_saida: '18:00',
     tolerancia_saida_antes: 15,
     tolerancia_saida_depois: 15,
+    duracao_almoco: 60,
   });
 
   const configPonto = React.useMemo(() => {
@@ -1479,8 +1483,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
     }
   };
 
-  const isNubia = currentUserProfile === 'nubia360admin@gmail.com' || currentUserProfile === 'nubia@gmail.com'; // Adjust if needed
-  const canExportReports = isNubia || currentUserProfile === 'vagnergestor360@gmail.com';
+  const canExportReports = USER_PROFILES[currentUserProfile]?.role === 'administrator';
 
   React.useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -1537,6 +1540,17 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
       tolDepois = configPonto.tolerancia_inicio_almoco_depois ?? 15;
     } else if (tipo === 'Retorno Almoço') {
       expectedTime = configPonto.hora_fim_almoco || '13:00';
+      if (configPonto.duracao_almoco) {
+        const todayStr = new Date(time.getTime() - (time.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+        const saidaAlmoco = pontos.find((p: any) => p.usuario_email === currentUserProfile && p.tipo === 'Saída Almoço' && new Date(p.data_hora).toISOString().startsWith(todayStr));
+        if (saidaAlmoco) {
+          const saidaTime = new Date(saidaAlmoco.data_hora);
+          const expectedReturnMinutes = saidaTime.getHours() * 60 + saidaTime.getMinutes() + Number(configPonto.duracao_almoco);
+          const expectedH = Math.floor(expectedReturnMinutes / 60).toString().padStart(2, '0');
+          const expectedM = (expectedReturnMinutes % 60).toString().padStart(2, '0');
+          expectedTime = `${expectedH}:${expectedM}`;
+        }
+      }
       tolAntes = configPonto.tolerancia_fim_almoco_antes ?? 15;
       tolDepois = configPonto.tolerancia_fim_almoco_depois ?? 15;
     } else if (tipo === 'Saída') {
@@ -1595,7 +1609,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
   };
 
   const openEditModal = (p: any) => {
-    if (!isNubia) return;
+    if (USER_PROFILES[currentUserProfile]?.role !== 'administrator') return;
     setEditingPonto(p);
     setEditTime(p.time);
     setConfirmDelete(false);
@@ -1646,7 +1660,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
 
   const meusPontos = pontos.filter((p: any) => p.usuario_email === currentUserProfile).sort((a: any, b: any) => new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime());
   const todosPontos = pontos.sort((a: any, b: any) => new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime());
-  const displayPontos = (isSystemAdmin ? todosPontos : meusPontos).filter((p: any) => p.tipo !== 'CONFIG');
+  const displayPontos = (USER_PROFILES[currentUserProfile]?.role === 'administrator' ? todosPontos : meusPontos).filter((p: any) => p.tipo !== 'CONFIG');
 
   const groupedPontos = React.useMemo(() => {
     const groups: Record<string, Record<string, any>> = {};
@@ -1694,7 +1708,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
 
   const exportarFolhaPontoPDF = () => {
     const doc = new jsPDF();
-    const titulo = isSystemAdmin ? 'Folha de Ponto Geral' : 'Minha Folha de Ponto';
+    const titulo = USER_PROFILES[currentUserProfile]?.role === 'administrator' ? 'Folha de Ponto Geral' : 'Minha Folha de Ponto';
     
     doc.setFontSize(18);
     doc.text(titulo, 14, 20);
@@ -1751,7 +1765,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
   const renderCell = (pointData: any, typeColorClass: string) => {
     if (!pointData) return <span className="text-slate-600">-</span>;
     const justifyIcon = pointData.justificativa ? <span title={pointData.justificativa} className="ml-1 text-[10px] text-red-400 cursor-help">ℹ️</span> : null;
-    if (isNubia) {
+    if (USER_PROFILES[currentUserProfile]?.role === 'administrator') {
       return (
         <button 
           onClick={() => openEditModal(pointData)}
@@ -1771,7 +1785,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
       <div className="text-center space-y-4 mb-8 relative">
         <div className="flex items-center justify-center relative">
           <h2 className="text-3xl sm:text-5xl font-black text-white uppercase tracking-tighter">Ponto Eletrônico</h2>
-          {isSystemAdmin && (
+          {USER_PROFILES[currentUserProfile]?.role === 'administrator' && (
              <button onClick={() => setShowSettings(true)} className="absolute right-0 text-slate-500 hover:text-emerald-400 transition-colors" title="Configurações de Ponto">
                <Settings size={24} />
              </button>
@@ -1805,7 +1819,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
       </div>
 
       {/* MODAL DE EDIÇÃO DE PONTO (SOMENTE NUBIA) */}
-      {editingPonto && isNubia && (
+      {editingPonto && USER_PROFILES[currentUserProfile]?.role === 'administrator' && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
@@ -1867,7 +1881,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
             className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
           >
             <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-900/50">
-              <h3 className="text-xl font-bold text-white uppercase tracking-wider">{isSystemAdmin ? 'Todos os Registros' : 'Meus Registros'}</h3>
+              <h3 className="text-xl font-bold text-white uppercase tracking-wider">{USER_PROFILES[currentUserProfile]?.role === 'administrator' ? 'Todos os Registros' : 'Meus Registros'}</h3>
               <div className="flex items-center gap-4">
                 {canExportReports && (
                   <Button onClick={exportarFolhaPontoPDF} variant="secondary" className="h-8 px-4 text-xs bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20">
@@ -1969,7 +1983,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
       )}
 
       {/* MODAL DE CONFIGURAÇÕES */}
-      {showSettings && isSystemAdmin && (
+      {showSettings && USER_PROFILES[currentUserProfile]?.role === 'administrator' && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
@@ -2022,6 +2036,16 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
                 </div>
               </div>
 
+              {/* DURACAO ALMOCO */}
+              <div className="bg-slate-800/40 p-4 rounded-xl border border-slate-700/50 mb-4">
+                <h5 className="text-sm font-bold text-amber-400 uppercase tracking-widest mb-4">Tempo de Almoço (Opcional)</h5>
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <label className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mb-1 block">Duração (minutos)</label>
+                    <input type="number" min="0" value={settingsFormData.duracao_almoco ?? ''} onChange={(e) => setSettingsFormData({...settingsFormData, duracao_almoco: Number(e.target.value) || 0})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white font-mono focus:border-emerald-500 outline-none text-sm text-center" />
+                  </div>
+                </div>
+              </div>
               {/* FIM ALMOÇO */}
               <div className="bg-slate-800/40 p-4 rounded-xl border border-slate-700/50">
                 <h5 className="text-sm font-bold text-blue-400 uppercase tracking-widest mb-4">Retorno Almoço</h5>
@@ -2204,7 +2228,7 @@ export default function App() {
         if (USER_PROFILES[email]) {
           setCurrentUserProfile(email);
           setTaskFilterPerson(email);
-          setIsSystemAdmin(USER_PROFILES[email].role === 'administrator');
+          setIsSystemAdmin(USER_PROFILES[email].role === 'administrator' || USER_PROFILES[email].role === 'gestor');
         } else {
           setCurrentUserProfile(email);
           setTaskFilterPerson(email);
@@ -2226,7 +2250,7 @@ export default function App() {
         if (USER_PROFILES[email]) {
           setCurrentUserProfile(email);
           setTaskFilterPerson(email);
-          setIsSystemAdmin(USER_PROFILES[email].role === 'administrator');
+          setIsSystemAdmin(USER_PROFILES[email].role === 'administrator' || USER_PROFILES[email].role === 'gestor');
         } else {
           setCurrentUserProfile(email);
           setTaskFilterPerson(email);
@@ -3159,7 +3183,7 @@ export default function App() {
                     
                     <div className="flex flex-wrap items-center gap-3">
                       <div className="flex flex-wrap items-center gap-2 bg-slate-900 p-1 rounded-xl border border-slate-800">
-                         {isSystemAdmin && (
+                         {USER_PROFILES[currentUserProfile]?.role === 'administrator' && (
                            <select 
                               value={reportFilterUser}
                               onChange={(e) => setReportFilterUser(e.target.value)}
@@ -3179,7 +3203,7 @@ export default function App() {
                            className="bg-transparent text-slate-300 text-xs font-bold rounded-lg px-2 py-1 outline-none"
                            style={{ colorScheme: 'dark' }}
                          />
-                         <button onClick={() => downloadDailyReports(isSystemAdmin ? reportFilterUser : currentUserProfile, reportFilterDate)} className="flex items-center gap-2 px-3 py-2 bg-slate-950 text-emerald-500 rounded-lg font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all border border-slate-800">
+                         <button onClick={() => downloadDailyReports(USER_PROFILES[currentUserProfile]?.role === 'administrator' ? reportFilterUser : currentUserProfile, reportFilterDate)} className="flex items-center gap-2 px-3 py-2 bg-slate-950 text-emerald-500 rounded-lg font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all border border-slate-800">
                            <Download size={14} /> Exportar Relatório
                          </button>
                       </div>
@@ -3193,8 +3217,9 @@ export default function App() {
                   </div>
 
                   {/* Filtro de Colaborador */}
-                  {isSystemAdmin && (
+                  {USER_PROFILES[currentUserProfile]?.role === 'administrator' && (
                     <div className="flex gap-2 border-b border-slate-800 pb-4 overflow-x-auto scrollbar-hide">
+                      <button onClick={() => setTaskFilterPerson('all')} className={`whitespace-nowrap pb-2 px-4 text-sm font-black uppercase tracking-widest transition-all ${taskFilterPerson === 'all' ? 'text-emerald-500 border-b-2 border-emerald-500' : 'text-slate-500 hover:text-slate-300'}`}>Todos</button>
                       {RESPONSAVEIS.map((r: any) => (
                         <button key={r.value} onClick={() => setTaskFilterPerson(r.value)} className={`whitespace-nowrap pb-2 px-4 text-sm font-black uppercase tracking-widest transition-all ${taskFilterPerson === r.value ? 'text-emerald-500 border-b-2 border-emerald-500' : 'text-slate-500 hover:text-slate-300'}`}>
                           {r.label}
@@ -3341,7 +3366,7 @@ export default function App() {
                                           <div className={`w-2 h-2 rounded-full ${prioColor}`} />
                                           <span className="text-[10px] uppercase font-black tracking-widest text-slate-500">{prioLabel}</span>
                                         </div>
-                                        {isSystemAdmin && (
+                                        {USER_PROFILES[currentUserProfile]?.role === 'administrator' && (
                                           <div className="flex items-center gap-1 text-[10px] uppercase font-black tracking-widest text-slate-600 bg-slate-950/50 px-2 py-0.5 rounded-md border border-slate-800">
                                             <User size={10} />
                                             {responsavelName}
@@ -3836,7 +3861,7 @@ export default function App() {
                               )}
 
                               <div className="grid grid-cols-1 gap-6">
-                                {isSystemAdmin && (
+                                {USER_PROFILES[currentUserProfile]?.role === 'administrator' && (
                                   <Select 
                                     label="Responsável" 
                                     options={[{label: 'Selecionar Responsável...', value: ''}, ...RESPONSAVEIS]} 
