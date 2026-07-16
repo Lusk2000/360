@@ -2378,28 +2378,13 @@ export default function App() {
             if (tasksToRenew.length > 0) {
                console.log(`[${timestamp}] 🔄 Renovando ${tasksToRenew.length} tarefas recorrentes...`);
                for (const t of tasksToRenew) {
+                  const now = new Date().toISOString();
                   await supabase.from('tasks').update({
-                      is_recurring: false
-                  }).eq('id', t.id);
-                  t.is_recurring = false;
-                  
-                  const newTask = {
-                      titulo: t.titulo,
-                      descricao: t.descricao,
                       status: 'pending',
-                      prioridade: t.prioridade,
-                      atribuido_a: t.atribuido_a,
-                      data: null, // não tem data, ou t.data
-                      is_recurring: true,
-                      user_id: t.user_id,
-                      created_at: new Date().toISOString(),
-                      updated_at: new Date().toISOString()
-                  };
-                  
-                  const { data: insertedTasks } = await supabase.from('tasks').insert([newTask]).select();
-                  if (insertedTasks && insertedTasks.length > 0) {
-                      data.push(...insertedTasks);
-                  }
+                      updated_at: now
+                  }).eq('id', t.id);
+                  t.status = 'pending';
+                  t.updated_at = now;
                }
             }
 
@@ -2550,6 +2535,11 @@ export default function App() {
     // Clear any stale channels first to prevent duplicate bindings on fast remounts (React StrictMode)
     supabase.getChannels().forEach(channel => supabase.removeChannel(channel));
     
+    // Refresh tasks periodically to handle daily recurrences naturally (e.g. at midnight)
+    const dailyRefreshInterval = setInterval(() => {
+      fetchCollections('tasks');
+    }, 60000 * 30); // 30 minutes
+
     const channels = collections.map(name => {
       return supabase.channel(`changes-${name}`)
         .on('postgres_changes', { 
@@ -2563,6 +2553,7 @@ export default function App() {
     });
 
     return () => {
+      clearInterval(dailyRefreshInterval);
       channels.forEach(channel => supabase.removeChannel(channel));
     };
   }, [user?.id, currentUserProfile, isAdmin]);
