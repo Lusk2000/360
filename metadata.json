@@ -1,0 +1,10 @@
+{
+  "name": "Gestao 360 Financeiro",
+  "description": "Sistema completo de gestão financeira, controle de clientes, serviços e agenda com autenticação de usuários.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
