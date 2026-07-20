@@ -4,8 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { generateExecutiveReport, ReportCard, ReportTable } from './utils/pdfGenerator';
 import { 
   Users, Briefcase, ArrowUpCircle, 
   ArrowDownCircle, DollarSign, Plus, Trash2, Edit3, 
@@ -15,6 +14,7 @@ import {
   ChevronsUpDown, CheckSquare, ListTodo, FileDown, BookOpen, Search, Wallet, TrendingUp, Building2, PiggyBank, Shield
 , RefreshCw, FileText, BarChart2, Download, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import FinancialReportView from './components/FinancialReportView';
 import { 
   ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid 
 } from 'recharts';
@@ -243,12 +243,11 @@ const navItems = [
   { id: 'agenda', label: 'Agenda', icon: CalendarIcon, protected: false },
   { id: 'tasks', label: 'Tarefas', icon: ListTodo, protected: false },
   { id: 'financial_control', label: 'Finanças', icon: DollarSign, protected: true },
-  { id: 'reports', label: 'Relatórios', icon: PieChart, protected: true },
 ];
 
 // --- Sub-componentes do Dashboard e Visões ---
 
-const AgendaView = ({ currentMonth, setCurrentMonth, permissions, calendarDays, appointments, setFormData, setEditingId, setIsModalOpen, setItemToDelete, isSystemAdmin }: any) => {
+const AgendaView = ({ currentMonth, setCurrentMonth, permissions, calendarDays, appointments, setFormData, setEditingId, setIsModalOpen, setItemToDelete, isSystemAdmin, onDownload }: any) => {
   const [selectedDay, setSelectedDay] = useState<string | null>(new Date().toISOString().split('T')[0]);
 
   return (
@@ -267,6 +266,11 @@ const AgendaView = ({ currentMonth, setCurrentMonth, permissions, calendarDays, 
           </span>
           <Button variant="ghost" className="px-2" onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))}><ChevronRight size={18} /></Button>
           <div className="hidden sm:block w-px h-6 bg-slate-800 mx-2"></div>
+          {onDownload && (
+            <Button onClick={onDownload} className="py-2.5 px-4 bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white font-black uppercase text-[10px] tracking-widest rounded-xl transition-all flex items-center gap-2">
+              <Download size={14} /> Relatório PDF
+            </Button>
+          )}
           {permissions.canEdit('agenda') && (
             <Button onClick={() => { setEditingId(null); setFormData({ data: new Date().toISOString().split('T')[0] }); setIsModalOpen(true); }} className="py-2.5 px-5 ml-auto lg:ml-0 bg-purple-500 hover:bg-purple-400 text-slate-950 font-black uppercase text-[10px] tracking-widest rounded-xl shadow-[0_0_15px_rgba(168,85,247,0.3)] transition-all hover:scale-105 active:scale-95"><Plus size={16} /> Novo Agendamento</Button>
           )}
@@ -675,115 +679,8 @@ const ListView = ({ title, data, columns, collName, onAdd, permissions, handleTo
   </div>
 );
 
-const generateModernPDF = (doc: any, title: string, kpis: any[], tableData: any[], tableHead: string[], startY: number = 0) => {
-  const bgColor = [15, 23, 42]; 
-  const primaryColor = [16, 185, 129]; 
-  const textColor = [255, 255, 255]; 
-  const lightText = [148, 163, 184]; 
-  const cardBgColor = [30, 41, 59];
-  const cardBorderColor = [51, 65, 85];
-  
-  if (!doc.darkThemeInitialized) {
-    const originalAddPage = doc.addPage.bind(doc);
-    (doc as any).addPage = function() {
-      originalAddPage();
-      doc.setFillColor(...bgColor as [number, number, number]); 
-      doc.rect(0, 0, 210, 297, 'F');
-      return doc;
-    };
-    doc.darkThemeInitialized = true;
-  }
-  
-  let currentY = startY;
 
-  if (startY === 0) {
-    const now = new Date();
-    doc.setFillColor(...bgColor as [number, number, number]);
-    doc.rect(0, 0, 210, 297, 'F');
-    
-    doc.setFillColor(...primaryColor as [number, number, number]);
-    doc.rect(0, 0, 210, 4, 'F');
-    
-    doc.setFontSize(22);
-    doc.setTextColor(...primaryColor as [number, number, number]);
-    doc.setFont('helvetica', 'bold');
-    doc.text(title, 14, 22);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(...lightText as [number, number, number]);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`FREITAS HUB AGÊNCIA - GERADO EM: ${now.toLocaleDateString('pt-BR')} ${now.toLocaleTimeString('pt-BR')}`, 14, 30);
-    
-    currentY = 50;
-  } else {
-    doc.setFontSize(18);
-    doc.setTextColor(...primaryColor as [number, number, number]);
-    doc.setFont('helvetica', 'bold');
-    doc.text(title, 14, currentY);
-    currentY += 15;
-  }
-
-  if (kpis && kpis.length > 0) {
-      const cardWidth = 182 / kpis.length;
-      kpis.forEach((kpi, i) => {
-          const x = 14 + (i * cardWidth);
-          doc.setFillColor(...cardBgColor as [number, number, number]);
-          doc.setDrawColor(...cardBorderColor as [number, number, number]);
-          doc.rect(x, currentY, cardWidth - 4, 20, 'FD');
-          
-          doc.setFontSize(8);
-          doc.setTextColor(...lightText as [number, number, number]);
-          doc.setFont('helvetica', 'normal');
-          doc.text(kpi.label.toUpperCase(), x + 4, currentY + 7);
-          
-          doc.setFontSize(12);
-          doc.setTextColor(...textColor as [number, number, number]);
-          doc.setFont('helvetica', 'bold');
-          doc.text(String(kpi.value), x + 4, currentY + 15);
-          doc.setFont('helvetica', 'normal');
-      });
-      currentY += 30;
-  }
-
-  if (tableData && tableData.length > 0) {
-      autoTable(doc, {
-          startY: currentY,
-          head: [tableHead],
-          body: tableData,
-          theme: 'grid',
-          headStyles: { 
-              fillColor: primaryColor as [number, number, number],
-              textColor: bgColor as [number, number, number],
-              fontStyle: 'bold',
-              halign: 'left'
-          },
-          bodyStyles: {
-              fillColor: bgColor as [number, number, number],
-              textColor: lightText as [number, number, number],
-          },
-          alternateRowStyles: {
-              fillColor: cardBgColor as [number, number, number]
-          },
-          styles: {
-              font: 'helvetica',
-              fontSize: 9,
-              cellPadding: 4,
-              lineColor: cardBorderColor as [number, number, number],
-              lineWidth: 0.1
-          }
-      });
-      currentY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY : currentY + 10;
-  } else {
-      doc.setFontSize(10);
-      doc.setTextColor(...lightText as [number, number, number]);
-      doc.setFont('helvetica', 'italic');
-      doc.text('Nenhum dado encontrado para este período.', 14, currentY + 5);
-      currentY += 15;
-  }
-  return currentY;
-};
-
-const ReportsView = ({ clients, tasks, appointments, transactions, dailyReports }: any) => {
+const ReportsView = ({ clients, tasks, appointments, transactions, dailyReports, openReportModal }: any) => {
   const usersMap: any = {};
   tasks.forEach((t: any) => {
     const userLabel = t.atribuido_a || 'Sem responsável';
@@ -834,187 +731,125 @@ const ReportsView = ({ clients, tasks, appointments, transactions, dailyReports 
     return acc;
   }, []).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  const totalIncome = transactions.filter((t: any) => t.type === 'income' && t.status === 'received').reduce((acc: any, t: any) => acc + Number(t.valor), 0);
+  const totalIncome = transactions.filter((t: any) => t.type === 'income').reduce((acc: any, t: any) => acc + Number(t.valor), 0);
   const totalExpense = transactions.filter((t: any) => t.type === 'expense').reduce((acc: any, t: any) => acc + Number(t.valor), 0);
   const totalProfit = totalIncome - totalExpense;
 
   const activeClientsCount = clients.filter((c: any) => c.status === 'active').length;
 
 
-  const downloadProductivity = () => {
-    const doc = new jsPDF();
-    const kpis = prodKpis;
-    const tableData = productivityData.map(row => [row.name, row.Concluídas, row['Não Realizadas'], `${row.Eficiência}%`]);
-    let currentY = generateModernPDF(doc, 'Relatório de Produtividade', kpis, tableData, ['Usuário', 'Concluídas', 'Não Realizadas', 'Eficiência']);
-
-    if (typeof dailyReports !== 'undefined' && dailyReports.length > 0) {
-        const users = Array.from(new Set(dailyReports.map((r: any) => r.responsavel)));
-        users.forEach(userId => {
-             const userReps = dailyReports.filter((r: any) => r.responsavel === userId);
-             userReps.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-             const latest = userReps[0];
-             if (latest) {
-                 const summaryData = [
-                    ['Data', new Date(latest.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'})],
-                    ['Pendências', latest.pendencias || '-'],
-                    ['Dificuldades', latest.dificuldades || '-'],
-                    ['Prioridades', latest.prioridades || '-']
-                 ];
-                 if (currentY > 180) { doc.addPage(); currentY = 20; }
-                 currentY = generateModernPDF(doc, `Resumo Diário - ${USER_PROFILES[String(userId)]?.label || userId}`, [], summaryData, ['Tópico', 'Descrição'], currentY) + 10;
-             }
-        });
-    }
-
-    doc.save(`produtividade_${new Date().toISOString().split('T')[0]}.pdf`);
-  };
 
   const downloadFinance = () => {
-    const doc = new jsPDF();
-    const kpis = [
-      { label: 'Receita Total', value: `R$ ${totalIncome.toLocaleString('pt-BR', {minimumFractionDigits:2})}` },
-      { label: 'Despesa Total', value: `R$ ${totalExpense.toLocaleString('pt-BR', {minimumFractionDigits:2})}` },
-      { label: 'Lucro Líquido', value: `R$ ${totalProfit.toLocaleString('pt-BR', {minimumFractionDigits:2})}` }
-    ];
-    const tableData = transactions.map((t: any) => [
-      t.type === 'income' ? (t.cliente || 'N/A') : (t.descricao || 'N/A'),
-      t.type === 'income' ? 'Entrada' : 'Saída',
-      `R$ ${Number(t.valor).toLocaleString('pt-BR', {minimumFractionDigits:2})}`,
-      new Date(t.data).toLocaleDateString('pt-BR')
+    const incomeTransactions = transactions.filter((t: any) => t.type === 'income');
+    const expenseTransactions = transactions.filter((t: any) => t.type === 'expense');
+
+    const incomeTable = incomeTransactions.map((t: any) => [
+      t.cliente || t.descricao || 'Receita',
+      new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'}),
+      `R$ ${Number(t.valor).toLocaleString('pt-BR', {minimumFractionDigits:2})}`
     ]);
-    generateModernPDF(doc, 'Relatório Financeiro', kpis, tableData, ['Cliente / Descrição', 'Tipo', 'Valor', 'Data']);
-    doc.save(`financeiro_${new Date().toISOString().split('T')[0]}.pdf`);
+
+    const expenseTable = expenseTransactions.map((t: any) => [
+      t.descricao || 'Despesa',
+      new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'}),
+      `R$ ${Number(t.valor).toLocaleString('pt-BR', {minimumFractionDigits:2})}`
+    ]);
+
+    generateExecutiveReport({
+      title: 'Relatório Financeiro',
+      period: 'Geral',
+      cards: [
+        { label: 'Entradas', value: `R$ ${totalIncome.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [34, 197, 94] },
+        { label: 'Saídas', value: `R$ ${totalExpense.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [239, 68, 68] },
+        { label: 'Lucro Bruto', value: `R$ ${totalProfit.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [37, 99, 235] },
+        { label: 'Lucro Líquido', value: `R$ ${totalProfit.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [37, 99, 235] }
+      ],
+      mainTable: {
+        title: 'Entradas',
+        head: [['Descrição / Cliente', 'Data', 'Valor']],
+        body: incomeTable
+      },
+      additionalTables: [
+        {
+          title: 'Saídas',
+          head: [['Descrição', 'Data', 'Valor']],
+          body: expenseTable
+        }
+      ],
+      finalSummary: `Lucro Bruto: Fórmula: Total de Entradas - Total de Saídas. Representa o valor que sobra após descontar todas as despesas das receitas.
+
+Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissões - Custos Extras. Representa o lucro real da empresa após todos os descontos e custos. Caso não existam custos adicionais, o Lucro Líquido deverá ser igual ao Lucro Bruto.`,
+      filename: `relatorio_financeiro_${new Date().toISOString().split('T')[0]}.pdf`
+    });
   };
 
-  const downloadAgenda = () => {
-    const doc = new jsPDF();
-    const tableData = appointments.map((a: any) => [
-      `${a.data ? new Date(a.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : ''} ${a.hora || ''}`.trim(),
-      a.titulo_evento || a.titulo || 'Sem título',
-      a.localizacao || '-',
-      a.status === 'Concluído' ? 'Concluído' : a.status === 'Cancelado' ? 'Cancelado' : 'Pendente'
-    ]);
-    generateModernPDF(doc, 'Agenda de Compromissos', [], tableData, ['Data/Hora', 'Título', 'Localização', 'Status']);
-    doc.save(`agenda_${new Date().toISOString().split('T')[0]}.pdf`);
-  };
 
-  const downloadClients = () => {
-    const doc = new jsPDF();
-    const kpis = [
-      { label: 'Clientes Ativos', value: activeClientsCount },
-      { label: 'Novos Clientes (Mês)', value: clients.filter((c: any) => new Date(c.created_at).getMonth() === new Date().getMonth()).length },
-      { label: 'Cancelamentos', value: clients.filter((c: any) => c.status === 'inactive').length }
-    ];
-    const tableData = clients.map((c: any) => [
-      c.nome,
-      c.empresa || '-',
-      c.telefone || '-',
-      c.status === 'active' ? 'Ativo' : 'Inativo'
-    ]);
-    generateModernPDF(doc, 'Relatório de Clientes', kpis, tableData, ['Nome', 'Empresa', 'Telefone', 'Status']);
-    doc.save(`clientes_${new Date().toISOString().split('T')[0]}.pdf`);
-  };
 
   const downloadAll = () => {
-    const doc = new jsPDF();
-    const now = new Date();
-    
-    // --- CAPA DO RELATÓRIO ---
-    doc.setFillColor(15, 23, 42); 
-    doc.rect(0, 0, 210, 297, 'F');
-    
-    doc.setFillColor(16, 185, 129); 
-    doc.rect(0, 0, 210, 8, 'F');
-    
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(48);
-    doc.setFont('helvetica', 'bold');
-    doc.text('FREITAS HUB', 105, 120, { align: 'center' });
-    
-    doc.setTextColor(16, 185, 129);
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Relatório Executivo e Analítico', 105, 135, { align: 'center' });
-    
-    doc.setTextColor(148, 163, 184);
-    doc.setFontSize(10);
-    doc.text(`Emitido em: ${now.toLocaleDateString('pt-BR')} às ${now.toLocaleTimeString('pt-BR')}`, 105, 270, { align: 'center' });
-    doc.text('Confidencial - Uso Interno', 105, 277, { align: 'center' });
-    
-    doc.addPage();
-    // --- FIM DA CAPA ---
-
-    // --- PÁGINA 1: Cabeçalho Padrão ---
-    doc.setFillColor(15, 23, 42); 
-    doc.rect(0, 0, 210, 297, 'F');
-    doc.setFillColor(16, 185, 129);
-    doc.rect(0, 0, 210, 4, 'F');
-    doc.setFontSize(22);
-    doc.setTextColor(16, 185, 129);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Resumo Executivo', 14, 22);
-    doc.setFontSize(10);
-    doc.setTextColor(148, 163, 184);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`FREITAS HUB AGÊNCIA - EMITIDO EM: ${now.toLocaleDateString('pt-BR')} ${now.toLocaleTimeString('pt-BR')}`, 14, 30);
-    
-    let currentY = 50;
-
-    // 1. Produtividade
     const prodTable = productivityData.map(row => [row.name, row.Concluídas, row['Não Realizadas'], `${row.Eficiência}%`]);
-    currentY = generateModernPDF(doc, '1. Desempenho da Equipe', prodKpis, prodTable, ['Membro da Equipe', 'Concluídas', 'Não Realizadas', 'Eficiência'], currentY) + 20;
-
-    // 2. Financeiro
+    
     const finKpis = [
-      { label: 'Receita Total', value: `R$ ${totalIncome.toLocaleString('pt-BR', {minimumFractionDigits:2})}` },
-      { label: 'Despesa Total', value: `R$ ${totalExpense.toLocaleString('pt-BR', {minimumFractionDigits:2})}` },
-      { label: 'Lucro Líquido', value: `R$ ${totalProfit.toLocaleString('pt-BR', {minimumFractionDigits:2})}` }
+      { label: 'Receita Total', value: `R$ ${totalIncome.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [34, 197, 94] },
+      { label: 'Despesas', value: `R$ ${totalExpense.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [239, 68, 68] },
+      { label: 'Lucro Líquido', value: `R$ ${totalProfit.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [37, 99, 235] }
     ];
+    
     const finTable = transactions.map((t: any) => [
       t.type === 'income' ? (t.cliente || 'N/A') : (t.descricao || 'N/A'),
       t.type === 'income' ? 'Entrada' : 'Saída',
       `R$ ${Number(t.valor).toLocaleString('pt-BR', {minimumFractionDigits:2})}`,
-      new Date(t.data).toLocaleDateString('pt-BR')
+      new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'})
     ]);
-    
-    if (currentY > 180) { 
-      doc.addPage(); 
-      currentY = 0; 
-    }
-    currentY = generateModernPDF(doc, '2. Balanço Financeiro', finKpis, finTable, ['Descrição / Cliente', 'Tipo', 'Valor', 'Data'], currentY) + 20;
 
-    // 3. Clientes
-    const clientKpis = [
-      { label: 'Clientes Ativos', value: activeClientsCount },
-      { label: 'Novos no Mês', value: clients.filter((c: any) => new Date(c.created_at).getMonth() === new Date().getMonth()).length },
-      { label: 'Cancelamentos', value: clients.filter((c: any) => c.status === 'inactive').length }
-    ];
     const clientTable = clients.map((c: any) => [
       c.nome,
       c.empresa || '-',
       c.telefone || '-',
       c.status === 'active' ? 'Ativo' : 'Inativo'
     ]);
-    if (currentY > 180) { 
-      doc.addPage(); 
-      currentY = 0; 
-    }
-    currentY = generateModernPDF(doc, '3. Carteira de Clientes', clientKpis, clientTable, ['Nome', 'Empresa/Projeto', 'Telefone', 'Status'], currentY) + 20;
 
-    // 4. Agenda
     const agendaTable = appointments.map((a: any) => [
       `${a.data ? new Date(a.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : ''} ${a.hora || ''}`.trim(),
       a.titulo_evento || a.titulo || 'Sem título',
       a.localizacao || '-',
       a.status === 'Concluído' ? 'Concluído' : a.status === 'Cancelado' ? 'Cancelado' : 'Pendente'
     ]);
-    if (currentY > 180) { 
-      doc.addPage(); 
-      currentY = 0; 
-    }
-    currentY = generateModernPDF(doc, '4. Agenda e Compromissos', [], agendaTable, ['Data/Hora', 'Título', 'Localização', 'Status'], currentY) + 20;
 
-    // 5. Resumos Diários por Usuário
+    const additionalTables: ReportTable[] = [
+      {
+        title: 'Balanço Financeiro',
+        head: [['Descrição / Cliente', 'Tipo', 'Valor', 'Data']],
+        body: finTable,
+        didParseCell: function(data: any) {
+            if (data.section === 'body' && data.column.index === 1) {
+                data.cell.styles.textColor = data.cell.raw === 'Entrada' ? [34, 197, 94] : [239, 68, 68];
+            }
+        }
+      },
+      {
+        title: 'Carteira de Clientes',
+        head: [['Nome', 'Empresa/Projeto', 'Telefone', 'Status']],
+        body: clientTable,
+        didParseCell: function(data: any) {
+            if (data.section === 'body' && data.column.index === 3) {
+                data.cell.styles.textColor = data.cell.raw === 'Ativo' ? [34, 197, 94] : [239, 68, 68];
+            }
+        }
+      },
+      {
+        title: 'Agenda e Compromissos',
+        head: [['Data/Hora', 'Título', 'Localização', 'Status']],
+        body: agendaTable,
+        didParseCell: function(data: any) {
+            if (data.section === 'body' && data.column.index === 3) {
+                if (data.cell.raw === 'Concluído') data.cell.styles.textColor = [34, 197, 94];
+                else if (data.cell.raw === 'Cancelado') data.cell.styles.textColor = [239, 68, 68];
+                else data.cell.styles.textColor = [245, 158, 11];
+            }
+        }
+      }
+    ];
+
     if (typeof dailyReports !== 'undefined' && dailyReports.length > 0) {
         const users = Array.from(new Set(dailyReports.map((r: any) => r.responsavel)));
         users.forEach((userId, index) => {
@@ -1028,24 +863,31 @@ const ReportsView = ({ clients, tasks, appointments, transactions, dailyReports 
                     ['Dificuldades', latest.dificuldades || '-'],
                     ['Prioridades', latest.prioridades || '-']
                  ];
-                 if (currentY > 180) { doc.addPage(); currentY = 20; }
-                 const title = index === 0 ? `5. Resumo Diário - ${USER_PROFILES[String(userId)]?.label || userId}` : `Resumo Diário - ${USER_PROFILES[String(userId)]?.label || userId}`;
-                 currentY = generateModernPDF(doc, title, [], summaryData, ['Tópico', 'Descrição'], currentY) + 10;
+                 additionalTables.push({
+                   title: `Resumo Diário - ${USER_PROFILES[String(userId)]?.label || userId}`,
+                   head: [['Tópico', 'Descrição']],
+                   body: summaryData
+                 });
              }
         });
     }
 
-    // Rodapés nas páginas
-    const pageCount = (doc as any).internal.getNumberOfPages();
-    for (let i = 2; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(100, 116, 139);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Página ${i - 1} de ${pageCount - 1} | Freitas Hub Agência`, 105, 290, { align: 'center' });
-    }
-
-    doc.save(`relatorio_executivo_${new Date().toISOString().split('T')[0]}.pdf`);
+    generateExecutiveReport({
+      title: 'Relatório Executivo e Analítico',
+      period: 'Geral',
+      cards: [
+        ...prodKpis,
+        ...finKpis as any,
+        { label: 'Clientes Ativos', value: activeClientsCount, color: [34, 197, 94] }
+      ],
+      mainTable: {
+        title: 'Desempenho da Equipe',
+        head: [['Membro da Equipe', 'Concluídas', 'Não Realizadas', 'Eficiência']],
+        body: prodTable
+      },
+      additionalTables,
+      filename: `relatorio_executivo_${new Date().toISOString().split('T')[0]}.pdf`
+    });
   };
 
   return (
@@ -1057,23 +899,13 @@ const ReportsView = ({ clients, tasks, appointments, transactions, dailyReports 
           <p className="text-slate-400 mt-1 text-sm font-medium">Visão detalhada e analítica da agência</p>
         </div>
         <div className="flex items-center gap-3 w-full md:w-auto">
-          <Button onClick={downloadAll} className="flex-1 md:flex-none bg-white text-slate-950 hover:bg-slate-200 border border-white shadow-none font-bold">
+          <Button onClick={() => openReportModal('all')} className="flex-1 md:flex-none bg-white text-slate-950 hover:bg-slate-200 border border-white shadow-none font-bold">
             <FileText size={16} className="mr-2" /> Relatório Geral
           </Button>
         </div>
       </div>
 
-      {/* Filters */}
-      <Card className="p-4 border-slate-800 bg-slate-900/50 grid grid-cols-2 gap-4">
-        <div>
-          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">Data Inicial</label>
-          <input type="date" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-300 outline-none focus:border-emerald-500/50" />
-        </div>
-        <div>
-          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">Data Final</label>
-          <input type="date" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-300 outline-none focus:border-emerald-500/50" />
-        </div>
-      </Card>
+
 
       {/* SECTION: Produtividade */}
       <div className="space-y-6">
@@ -1081,7 +913,7 @@ const ReportsView = ({ clients, tasks, appointments, transactions, dailyReports 
           <h3 className="text-xl font-bold text-white flex items-center gap-2">
             <BarChart2 size={24} className="text-[#1E7F4F]" /> Produtividade
           </h3>
-          <Button onClick={downloadProductivity} variant="secondary" className="h-8 px-3 text-xs bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800">
+          <Button onClick={() => openReportModal('productivity')} variant="secondary" className="h-8 px-3 text-xs bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800">
             <Download size={14} className="mr-2" /> PDF
           </Button>
         </div>
@@ -1151,7 +983,7 @@ const ReportsView = ({ clients, tasks, appointments, transactions, dailyReports 
           <h3 className="text-xl font-bold text-white flex items-center gap-2">
             <DollarSign size={24} className="text-[#C9A227]" /> Financeiro
           </h3>
-          <Button onClick={downloadFinance} variant="secondary" className="h-8 px-3 text-xs bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800">
+          <Button onClick={() => openReportModal('finance')} variant="secondary" className="h-8 px-3 text-xs bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800">
             <Download size={14} className="mr-2" /> PDF
           </Button>
         </div>
@@ -1225,7 +1057,7 @@ const ReportsView = ({ clients, tasks, appointments, transactions, dailyReports 
           <h3 className="text-xl font-bold text-white flex items-center gap-2">
             <CalendarIcon size={24} className="text-blue-500" /> Agenda de Compromissos
           </h3>
-          <Button onClick={downloadAgenda} variant="secondary" className="h-8 px-3 text-xs bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800">
+          <Button onClick={() => openReportModal('agenda')} variant="secondary" className="h-8 px-3 text-xs bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800">
             <Download size={14} className="mr-2" /> PDF
           </Button>
         </div>
@@ -1269,7 +1101,7 @@ const ReportsView = ({ clients, tasks, appointments, transactions, dailyReports 
           <h3 className="text-xl font-bold text-white flex items-center gap-2">
             <Users size={24} className="text-purple-500" /> Clientes
           </h3>
-          <Button onClick={downloadClients} variant="secondary" className="h-8 px-3 text-xs bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800">
+          <Button onClick={() => openReportModal('clients')} variant="secondary" className="h-8 px-3 text-xs bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800">
             <Download size={14} className="mr-2" /> PDF
           </Button>
         </div>
@@ -1365,7 +1197,7 @@ const ReportsView = ({ clients, tasks, appointments, transactions, dailyReports 
 
       {/* Footer */}
       <div className="pt-8 border-t border-slate-800 flex justify-end">
-         <Button onClick={downloadAll} className="bg-white hover:bg-slate-200 text-slate-950 border border-white py-4 px-8 text-sm uppercase tracking-widest font-bold">
+         <Button onClick={() => openReportModal('all')} className="bg-white hover:bg-slate-200 text-slate-950 border border-white py-4 px-8 text-sm uppercase tracking-widest font-bold">
             <FileText size={18} className="mr-2" /> Exportar Tudo em PDF
           </Button>
       </div>
@@ -1375,7 +1207,7 @@ const ReportsView = ({ clients, tasks, appointments, transactions, dailyReports 
 
 // --- App Principal ---
 
-const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_PROFILES, supabase }: any) => {
+const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_PROFILES, supabase, onDownload }: any) => {
   const [currentTime, setCurrentTime] = React.useState(new Date());
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [showHistory, setShowHistory] = React.useState(false);
@@ -1640,6 +1472,25 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
     }
   };
 
+  const zerarHistorico = async () => {
+    if (!window.confirm('Tem certeza que deseja APAGAR TODOS os registros de ponto de TODOS os usuários? Esta ação não pode ser desfeita.')) {
+      return;
+    }
+    
+    setIsProcessing(true);
+    try {
+      const { error } = await supabase.from('pontos').delete().neq('tipo', 'CONFIG');
+      if (error) throw error;
+      
+      setPontos((prev: any) => prev.filter((p: any) => p.tipo === 'CONFIG'));
+      alert('Histórico de ponto zerado com sucesso.');
+    } catch (err: any) {
+      alert('Erro ao zerar histórico: ' + err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const meusPontos = pontos.filter((p: any) => p.usuario_email === currentUserProfile).sort((a: any, b: any) => new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime());
   const todosPontos = pontos.sort((a: any, b: any) => new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime());
   const displayPontos = (USER_PROFILES[currentUserProfile]?.role === 'administrator' ? todosPontos : meusPontos).filter((p: any) => p.tipo !== 'CONFIG');
@@ -1689,59 +1540,42 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
   }, [displayPontos]);
 
   const exportarFolhaPontoPDF = () => {
-    const doc = new jsPDF();
     const titulo = USER_PROFILES[currentUserProfile]?.role === 'administrator' ? 'Folha de Ponto Geral' : 'Minha Folha de Ponto';
     
-    doc.setFontSize(18);
-    doc.text(titulo, 14, 20);
-    
-    doc.setFontSize(10);
-    doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 28);
-
-    let currentY = 35;
+    const additionalTables: ReportTable[] = [];
 
     Object.entries(groupedPontos).forEach(([userName, dates], index) => {
-      if (index > 0) {
-        currentY += 10;
-        if (currentY > 270) {
-          doc.addPage();
-          currentY = 20;
-        }
-      }
-
-      doc.setFontSize(12);
-      doc.setFont("helvetica", "bold");
-      doc.text(`Colaborador: ${userName}`, 14, currentY);
-      currentY += 5;
-
-      const tableColumn = ["Dia", "Data", "Entrada", "Saída Almoço", "Retorno", "Saída"];
       const tableRows: any[] = [];
-
       const sortedDays = Object.values(dates).sort((a: any, b: any) => b.dateObj.getTime() - a.dateObj.getTime());
-
+      
       sortedDays.forEach((day: any) => {
         tableRows.push([
           day.dayOfWeek,
           day.dateStr,
-          day['Entrada'] ? day['Entrada'].time + (day['Entrada'].justificativa ? `\n(${day['Entrada'].justificativa})` : '') : '-',
-          day['Saída Almoço'] ? day['Saída Almoço'].time + (day['Saída Almoço'].justificativa ? `\n(${day['Saída Almoço'].justificativa})` : '') : '-',
-          day['Retorno Almoço'] ? day['Retorno Almoço'].time + (day['Retorno Almoço'].justificativa ? `\n(${day['Retorno Almoço'].justificativa})` : '') : '-',
-          day['Saída'] ? day['Saída'].time + (day['Saída'].justificativa ? `\n(${day['Saída'].justificativa})` : '') : '-',
+          day['Entrada'] ? day['Entrada'].time + (day['Entrada'].justificativa ? `
+(${day['Entrada'].justificativa})` : '') : '-',
+          day['Saída Almoço'] ? day['Saída Almoço'].time + (day['Saída Almoço'].justificativa ? `
+(${day['Saída Almoço'].justificativa})` : '') : '-',
+          day['Retorno Almoço'] ? day['Retorno Almoço'].time + (day['Retorno Almoço'].justificativa ? `
+(${day['Retorno Almoço'].justificativa})` : '') : '-',
+          day['Saída'] ? day['Saída'].time + (day['Saída'].justificativa ? `
+(${day['Saída'].justificativa})` : '') : '-',
         ]);
       });
 
-      autoTable(doc, {
-        head: [tableColumn],
-        body: tableRows,
-        startY: currentY,
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [16, 185, 129] },
+      additionalTables.push({
+        title: `Colaborador: ${userName}`,
+        head: [["Dia", "Data", "Entrada", "Saída Almoço", "Retorno", "Saída"]],
+        body: tableRows
       });
-
-      currentY = (doc as any).lastAutoTable.finalY + 10;
     });
 
-    doc.save(`folha_de_ponto_${new Date().toISOString().split('T')[0]}.pdf`);
+    generateExecutiveReport({
+      title: titulo,
+      period: 'Todos os registros',
+      additionalTables,
+      filename: `folha_de_ponto_${new Date().toISOString().split('T')[0]}.pdf`
+    });
   };
 
   const renderCell = (pointData: any, typeColorClass: string) => {
@@ -1795,8 +1629,8 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
       </div>
       
       <div className="flex justify-center mt-8 gap-4">
-        <Button onClick={() => setShowHistory(true)} variant="secondary" className="py-4 px-8 text-sm font-black tracking-widest bg-slate-800 hover:bg-slate-700 text-white">
-          VER HISTÓRICO DE PONTO
+        <Button onClick={onDownload} variant="secondary" className="py-4 px-8 text-sm font-black tracking-widest bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20">
+          <Download size={16} className="mr-2" /> RELATÓRIO PDF
         </Button>
       </div>
 
@@ -1866,9 +1700,14 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
               <h3 className="text-xl font-bold text-white uppercase tracking-wider">{USER_PROFILES[currentUserProfile]?.role === 'administrator' ? 'Todos os Registros' : 'Meus Registros'}</h3>
               <div className="flex items-center gap-4">
                 {canExportReports && (
-                  <Button onClick={exportarFolhaPontoPDF} variant="secondary" className="h-8 px-4 text-xs bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20">
-                    <Download size={14} className="mr-2" /> EXPORTAR PDF
-                  </Button>
+                  <>
+                    <Button onClick={zerarHistorico} variant="secondary" className="h-8 px-4 text-xs bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20" disabled={isProcessing}>
+                      <Trash2 size={14} className="mr-2" /> ZERAR HISTÓRICO
+                    </Button>
+                    <Button onClick={exportarFolhaPontoPDF} variant="secondary" className="h-8 px-4 text-xs bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20" disabled={isProcessing}>
+                      <Download size={14} className="mr-2" /> EXPORTAR PDF
+                    </Button>
+                  </>
                 )}
                 <button onClick={() => setShowHistory(false)} className="text-slate-500 hover:text-white transition-colors">
                   <X size={24} />
@@ -2082,6 +1921,10 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
 
 export default function App() {
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportDateStart, setReportDateStart] = useState('');
+  const [reportDateEnd, setReportDateEnd] = useState('');
+  const [reportType, setReportType] = useState<string>('');
   const [user, setUser] = useState<any>(null);
   const [isSystemAdmin, setIsSystemAdmin] = useState(false);
   const [currentUserProfile, setCurrentUserProfile] = useState('');
@@ -2112,7 +1955,8 @@ export default function App() {
   const [taskSearch, setTaskSearch] = useState('');
 
   const [reportFilterUser, setReportFilterUser] = useState('all');
-  const [reportFilterDate, setReportFilterDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [reportFilterDateStart, setReportFilterDateStart] = useState(() => new Date().toISOString().split('T')[0]);
+  const [reportFilterDateEnd, setReportFilterDateEnd] = useState(() => new Date().toISOString().split('T')[0]);
   const [summaryForm, setSummaryForm] = useState({
     atividades: '', pendencias: '', dificuldades: '', observacoes: '', prioridades: ''
   });
@@ -2169,6 +2013,7 @@ export default function App() {
   useEffect(() => {
     if (!permissions.canView(activeTab)) {
       setActiveTab('ponto');
+      setFormData({});
     }
   }, [permissions, activeTab]);
 
@@ -2332,6 +2177,17 @@ export default function App() {
               return { ...item, status: 'active' };
             });
             setter(parsedData);
+          } else if (name === 'transactions' && data) {
+            const parsedData = data.map((item: any) => {
+              if (item.descricao && item.descricao.startsWith('{')) {
+                try {
+                  const parsed = JSON.parse(item.descricao);
+                  return { ...item, categoria: parsed.categoria, descricao: parsed.descricao, forma_pagamento: parsed.forma_pagamento, _raw_descricao: item.descricao };
+                } catch(e) {}
+              }
+              return item;
+            });
+            setter(parsedData);
           } else if (name === 'tasks' && data) {
             const today = new Date();
             today.setHours(0,0,0,0);
@@ -2411,100 +2267,368 @@ export default function App() {
     return null;
   }
 
-  const downloadDailyReports = (userIdToExport: string = 'all', dateToExport: string = '') => {
-    const doc = new jsPDF();
-    
-    let currentY = 0;
-    const now = new Date();
-    const dateTimeStr = now.toLocaleDateString('pt-BR') + ' às ' + now.toLocaleTimeString('pt-BR');
-    
-    let allUsersSet = new Set([...dailyReports.map(r => r.responsavel), ...tasks.map(t => t.atribuido_a)]);
-    if (userIdToExport !== 'all') {
-       allUsersSet = new Set([userIdToExport]);
+
+
+
+    const executeReport = (type: string, start: string, end: string, user: string = 'all') => {
+    let periodStr = 'Geral';
+    if (start && end) {
+      periodStr = `${start.split('-').reverse().join('/')} até ${end.split('-').reverse().join('/')}`;
+    } else if (start) {
+      periodStr = `A partir de ${start.split('-').reverse().join('/')}`;
+    } else if (end) {
+      periodStr = `Até ${end.split('-').reverse().join('/')}`;
     }
-    const users = Array.from(allUsersSet).filter(Boolean);
-    
-    users.forEach((userId, index) => {
-       const userLabel = USER_PROFILES[String(userId)]?.label || userId;
-       
-       if (index > 0) {
-           doc.addPage();
-           currentY = 0;
-       }
-       
-       let userTasks = tasks.filter((t: any) => t.atribuido_a === userId);
-       if (dateToExport) {
-           userTasks = userTasks.filter((t: any) => !t.data || t.data === dateToExport || t.status !== 'done');
-       }
 
-       const userTasksDone = userTasks.filter((t: any) => t.status === 'done');
-       const userTasksPendingAll = userTasks.filter((t: any) => t.status !== 'done');
-       const totalTasks = userTasksDone.length + userTasksPendingAll.length;
-       const efficiency = totalTasks > 0 ? Math.round((userTasksDone.length / totalTasks) * 100) : 0;
+    if (type === 'agenda') {
+      let filtered = appointments;
+      if (start) filtered = filtered.filter((a:any) => a.data >= start);
+      if (end) filtered = filtered.filter((a:any) => a.data <= end);
+      
+      const cards = [
+        { label: 'Total de Compromissos', value: filtered.length, color: [37, 99, 235] },
+        { label: 'Concluídos', value: filtered.filter((a:any) => a.status === 'Concluído').length, color: [34, 197, 94] },
+        { label: 'Cancelados', value: filtered.filter((a:any) => a.status === 'Cancelado').length, color: [239, 68, 68] },
+        { label: 'Pendentes', value: filtered.filter((a:any) => a.status !== 'Concluído' && a.status !== 'Cancelado').length, color: [245, 158, 11] }
+      ];
 
-       const kpis = [
-         { label: 'Concluídas', value: userTasksDone.length },
-         { label: 'Não Realizadas', value: userTasksPendingAll.length },
-         { label: 'Eficiência', value: `${efficiency}%` }
-       ];
+      const tableData = filtered.map((a: any) => [
+        `${a.data ? new Date(a.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : ''} ${a.hora || ''}`.trim(),
+        a.titulo_evento || a.titulo || 'Sem título',
+        a.localizacao || '-',
+        a.descricao || '-',
+        a.status === 'Concluído' ? 'Concluído' : a.status === 'Cancelado' ? 'Cancelado' : 'Pendente'
+      ]);
+      generateExecutiveReport({
+        title: 'Agenda de Compromissos',
+        period: periodStr,
+        cards: cards as any,
+        mainTable: {
+          title: 'Compromissos',
+          head: [['Data/Hora', 'Título', 'Localização', 'Descrição', 'Status']],
+          body: tableData,
+          didParseCell: function(data: any) {
+              if (data.section === 'body' && data.column.index === 4) {
+                  if (data.cell.raw === 'Concluído') data.cell.styles.textColor = [34, 197, 94];
+                  else if (data.cell.raw === 'Cancelado') data.cell.styles.textColor = [239, 68, 68];
+                  else data.cell.styles.textColor = [245, 158, 11];
+              }
+          }
+        },
+        filename: `agenda_${new Date().toISOString().split('T')[0]}.pdf`
+      });
+    } else if (type === 'clients') {
+      let filtered = clients;
+      if (start) filtered = filtered.filter((c:any) => (c.created_at || '').substring(0,10) >= start);
+      if (end) filtered = filtered.filter((c:any) => (c.created_at || '').substring(0,10) <= end);
 
-       currentY = generateModernPDF(doc, `Produtividade - ${userLabel}`, kpis, [], [], 0) + 10;
-       
-       let userReports = dailyReports.filter((r: any) => r.responsavel === userId);
-       if (dateToExport) {
-           userReports = userReports.filter((r: any) => r.data === dateToExport);
-       }
-       userReports.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-       
-       const reportToPrint = userReports[0];
+      const activeClientsCount = filtered.filter((c: any) => c.status === 'active').length;
+      const kpis = [
+        { label: 'Clientes Ativos', value: activeClientsCount, color: [34, 197, 94] },
+        { label: 'Cancelamentos', value: filtered.filter((c: any) => c.status === 'inactive').length, color: [239, 68, 68] }
+      ];
+      
+      const isRestricted = currentUserProfile === 'gabriel360@gmail.com' || currentUserProfile === 'cassio360@gmail.com';
+      
+      let head = [['Nome', 'Serviço', 'Tarifa', 'Telefone', 'Email', 'Rede Social', 'Status']];
+      if (isRestricted) head = [['Nome', 'Telefone', 'Email', 'Rede Social', 'Status']];
 
-       if (reportToPrint) {
-           const reportDate = new Date(reportToPrint.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'});
-           const summaryData = [
-             ['Pendências do Dia', reportToPrint.pendencias || '-'],
-             ['Dificuldades', reportToPrint.dificuldades || '-'],
-             ['Prioridades p/ Amanhã', reportToPrint.prioridades || '-']
+      const tableData = filtered.map((c: any) => {
+        if (isRestricted) {
+           return [
+             c.nome || '-',
+             c.telefone || '-',
+             c.email || '-',
+             c.rede_social || '-',
+             c.status === 'active' ? 'Ativo' : 'Inativo'
            ];
+        }
+        return [
+          c.nome || '-',
+          c.servico || '-',
+          `R$ ${Number(c.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`,
+          c.telefone || '-',
+          c.email || '-',
+          c.rede_social || '-',
+          c.status === 'active' ? 'Ativo' : 'Inativo'
+        ];
+      });
 
-           currentY = generateModernPDF(doc, `Resumo do Dia (${reportDate})`, [], summaryData, ['Tópico', 'Descrição'], currentY) + 15;
-       } else {
-           if (currentY > 270) { doc.addPage(); currentY = 20; }
-           doc.setFontSize(11);
-           doc.setTextColor(200, 200, 200);
-           doc.setFont('helvetica', 'normal');
-           doc.text("Nenhum resumo diário encontrado para esta data.", 14, currentY);
-           currentY += 15;
-       }
+      generateExecutiveReport({
+        title: 'Relatório de Clientes',
+        period: periodStr,
+        cards: kpis as any,
+        mainTable: {
+          title: 'Carteira de Clientes',
+          head: head,
+          body: tableData,
+          didParseCell: function(data: any) {
+              const statusCol = isRestricted ? 4 : 6;
+              if (data.section === 'body' && data.column.index === statusCol) {
+                  data.cell.styles.textColor = data.cell.raw === 'Ativo' ? [34, 197, 94] : [239, 68, 68];
+              }
+          }
+        },
+        filename: `clientes_${new Date().toISOString().split('T')[0]}.pdf`
+      });
+    } else if (type === 'finance') {
+      let filtered = transactions;
+      if (start) filtered = filtered.filter((t:any) => t.data >= start);
+      if (end) filtered = filtered.filter((t:any) => t.data <= end);
+      
+      const tIncome = filtered.filter((t: any) => t.type === 'income').reduce((acc: any, t: any) => acc + Number(t.valor || 0), 0);
+      const tExpense = filtered.filter((t: any) => t.type === 'expense').reduce((acc: any, t: any) => acc + Number(t.valor || 0), 0);
+      const tProfit = tIncome - tExpense;
+      
+      const cards = [
+        { label: 'Receita Total', value: `R$ ${tIncome.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [34, 197, 94] },
+        { label: 'Despesas', value: `R$ ${tExpense.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [239, 68, 68] },
+        { label: 'Lucro Líquido', value: `R$ ${tProfit.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [37, 99, 235] }
+      ];
+      
+      const tableData = filtered.map((t: any) => [
+        t.type === 'income' ? 'Entrada' : 'Saída',
+        t.type === 'income' ? (t.cliente || t.descricao || 'N/A') : (t.descricao || 'N/A'),
+        t.categoria || 'Geral',
+        t.forma_pagamento || 'PIX',
+        new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'}),
+        `R$ ${Number(t.valor).toLocaleString('pt-BR', {minimumFractionDigits:2})}`,
+        t.status === 'paid' ? 'Pago' : 'Pendente'
+      ]);
 
-       const doneTable = userTasksDone.map((t: any) => [
-           t.titulo || 'Sem título',
-           t.data ? new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : '-'
-       ]);
-       if (doneTable.length > 0) {
-           if (currentY > 200) { doc.addPage(); currentY = 20; }
-           currentY = generateModernPDF(doc, 'Atividades Concluídas', [], doneTable, ['Tarefa', 'Data'], currentY) + 15;
-       }
+      generateExecutiveReport({
+        title: 'Relatório Financeiro',
+        period: periodStr,
+        cards: cards as any,
+        mainTable: {
+          title: 'Lançamentos Financeiros',
+          head: [['Tipo', 'Descrição', 'Categoria', 'Forma Pagamento', 'Data', 'Valor', 'Status']],
+          body: tableData,
+          didParseCell: function(data: any) {
+              if (data.section === 'body') {
+                  if (data.column.index === 0) {
+                      data.cell.styles.textColor = data.cell.raw === 'Entrada' ? [34, 197, 94] : [239, 68, 68];
+                  }
+                  if (data.column.index === 6) {
+                      data.cell.styles.textColor = data.cell.raw === 'Pago' ? [34, 197, 94] : [245, 158, 11];
+                  }
+              }
+          }
+        },
+        filename: `financeiro_${new Date().toISOString().split('T')[0]}.pdf`
+      });
+            } else if (type === 'productivity') {
+      const usersMap: any = {};
+      let fTasks = tasks;
+      if (start) fTasks = fTasks.filter((t:any) => t.data >= start);
+      if (end) fTasks = fTasks.filter((t:any) => t.data <= end);
+      
+      fTasks.forEach((t: any) => {
+        const userLabel = t.atribuido_a || 'Sem responsável';
+        if (!usersMap[userLabel]) {
+          usersMap[userLabel] = { done: 0, pending: 0 };
+        }
+        if (t.status === 'done') {
+          usersMap[userLabel].done++;
+        } else {
+          usersMap[userLabel].pending++;
+        }
+      });
+      const productivityData = Object.keys(usersMap).map(user => ({
+        name: user.split('@')[0], 
+        Concluídas: usersMap[user].done,
+        'Não Realizadas': usersMap[user].pending,
+        Eficiência: usersMap[user].done + usersMap[user].pending > 0 
+          ? Math.round((usersMap[user].done / (usersMap[user].done + usersMap[user].pending)) * 100)
+          : 0
+      }));
+      const totalDone = productivityData.reduce((acc, curr) => acc + curr.Concluídas, 0);
+      const totalPending = productivityData.reduce((acc, curr) => acc + curr['Não Realizadas'], 0);
+      const avgEfficiency = productivityData.length > 0 ? Math.round(productivityData.reduce((acc, curr) => acc + curr.Eficiência, 0) / productivityData.length) : 0;
+      const prodKpis = [
+        { label: 'Total Concluído', value: totalDone, color: [34, 197, 94] },
+        { label: 'Tarefas Pendentes', value: totalPending, color: [239, 68, 68] },
+        { label: 'Eficiência Média', value: `${avgEfficiency}%`, color: [37, 99, 235] }
+      ];
 
-       const pendingTable = userTasksPendingAll.map((t: any) => [
-           t.titulo || 'Sem título',
-           'Não Realizada'
-       ]);
-       
-       if (pendingTable.length > 0) {
-           if (currentY > 200) { doc.addPage(); currentY = 20; }
-           currentY = generateModernPDF(doc, 'Tarefas Não Realizadas', [], pendingTable, ['Tarefa', 'Status'], currentY) + 15;
-       }
-    });
-    
-    if (users.length === 0) {
-       doc.setFillColor(15, 23, 42); 
-       doc.rect(0, 0, 210, 297, 'F');
-       doc.setTextColor(255, 255, 255);
-       doc.text("Nenhum dado encontrado para exportação.", 14, 20);
+      const tableData = productivityData.map(row => [row.name, row.Concluídas, row['Não Realizadas'], `${row.Eficiência}%`]);
+      const additionalTables: any[] = [];
+      if (typeof dailyReports !== 'undefined' && dailyReports.length > 0) {
+
+          const users = Array.from(new Set(dailyReports.map((r: any) => r.responsavel)));
+          users.forEach(userId => {
+               const userReps = dailyReports.filter((r: any) => r.responsavel === userId);
+               userReps.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+               const latest = userReps[0];
+               if (latest) {
+                   const summaryData = [
+                      ['Data', new Date(latest.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'})],
+                      ['Pendências', latest.pendencias || '-'],
+                      ['Dificuldades', latest.dificuldades || '-'],
+                      ['Prioridades', latest.prioridades || '-']
+                   ];
+                   additionalTables.push({
+                     title: `Resumo Diário - ${(USER_PROFILES as any)[String(userId)]?.label || userId}`,
+                     head: [['Tópico', 'Descrição']],
+                     body: summaryData
+                   });
+               }
+          });
+      }
+      generateExecutiveReport({
+        title: 'Relatório de Produtividade',
+        period: periodStr,
+        cards: prodKpis as any,
+        mainTable: {
+          title: 'Desempenho da Equipe',
+          head: [['Membro da Equipe', 'Concluídas', 'Não Realizadas', 'Eficiência']],
+          body: tableData
+        },
+        additionalTables,
+        filename: `produtividade_${new Date().toISOString().split('T')[0]}.pdf`
+      });
+        } else if (type === 'tasks') {
+      let fTasks = tasks;
+      if (start) fTasks = fTasks.filter((t:any) => t.data >= start);
+      if (end) fTasks = fTasks.filter((t:any) => t.data <= end);
+      
+      const done = fTasks.filter((t:any) => t.status === 'done').length;
+      const pending = fTasks.filter((t:any) => t.status === 'pending').length;
+      const total = fTasks.length;
+
+      const tableData = fTasks.map((t: any) => [
+        t.titulo || 'Sem título',
+        t.atribuido_a || '-',
+        t.prioridade === 'high' ? 'Alta' : t.prioridade === 'low' ? 'Baixa' : 'Média',
+        new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'}),
+        t.status === 'done' ? 'Concluída' : 'Pendente'
+      ]);
+
+      generateExecutiveReport({
+        title: 'Relatório Executivo de Tarefas',
+        period: periodStr,
+        cards: [
+          { label: 'Total de Tarefas', value: total, color: [37, 99, 235] },
+          { label: 'Concluídas', value: done, color: [34, 197, 94] },
+          { label: 'Pendentes', value: pending, color: [239, 68, 68] }
+        ],
+        mainTable: {
+          title: 'Lista de Tarefas',
+          head: [['Título', 'Responsável', 'Prioridade', 'Data', 'Status']],
+          body: tableData,
+          didParseCell: function(data: any) {
+              if (data.section === 'body' && data.column.index === 4) {
+                  data.cell.styles.textColor = data.cell.raw === 'Concluída' ? [34, 197, 94] : [245, 158, 11];
+              }
+              if (data.section === 'body' && data.column.index === 2) {
+                  if (data.cell.raw === 'Alta') data.cell.styles.textColor = [239, 68, 68];
+              }
+          }
+        },
+        filename: `tarefas_${new Date().toISOString().split('T')[0]}.pdf`
+      });
+    } else if (type === 'all') {
+      let fTrans = transactions;
+      if (start) fTrans = fTrans.filter((t:any) => t.data >= start);
+      if (end) fTrans = fTrans.filter((t:any) => t.data <= end);
+      
+      const tIncome = fTrans.filter((t: any) => t.type === 'income').reduce((acc: any, t: any) => acc + Number(t.valor || 0), 0);
+      const tExpense = fTrans.filter((t: any) => t.type === 'expense').reduce((acc: any, t: any) => acc + Number(t.valor || 0), 0);
+      
+      const finTable = fTrans.map((t: any) => [
+        t.type === 'income' ? (t.cliente || 'N/A') : (t.descricao || 'N/A'),
+        t.type === 'income' ? 'Entrada' : 'Saída',
+        `R$ ${Number(t.valor).toLocaleString('pt-BR', {minimumFractionDigits:2})}`,
+        new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'})
+      ]);
+      
+      let fCli = clients;
+      if (start) fCli = fCli.filter((c:any) => (c.created_at || '').substring(0,10) >= start);
+      if (end) fCli = fCli.filter((c:any) => (c.created_at || '').substring(0,10) <= end);
+      const clientTable = fCli.map((c: any) => [
+        c.nome,
+        c.empresa || '-',
+        c.telefone || '-',
+        c.status === 'active' ? 'Ativo' : 'Inativo'
+      ]);
+      
+      generateExecutiveReport({
+        title: 'Relatório Completo',
+        period: periodStr,
+        cards: [
+          { label: 'Receita Total', value: `R$ ${tIncome.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [34, 197, 94] },
+          { label: 'Despesas', value: `R$ ${tExpense.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [239, 68, 68] },
+          { label: 'Clientes Ativos', value: fCli.filter((c:any) => c.status === 'active').length, color: [37, 99, 235] }
+        ],
+        mainTable: {
+          title: 'Últimos Lançamentos',
+          head: [['Descrição', 'Tipo', 'Valor', 'Data']],
+          body: finTable
+        },
+        additionalTables: [
+          {
+            title: 'Base de Clientes',
+            head: [['Nome', 'Empresa', 'Telefone', 'Status']],
+            body: clientTable
+          }
+        ],
+        filename: `geral_${new Date().toISOString().split('T')[0]}.pdf`
+      });
+    } else if (type === 'ponto') {
+      let fPontos = pontos;
+      if (start) fPontos = fPontos.filter((p:any) => (p.data_hora || '').substring(0,10) >= start);
+      if (end) fPontos = fPontos.filter((p:any) => (p.data_hora || '').substring(0,10) <= end);
+      if (user !== 'all') fPontos = fPontos.filter((p:any) => (p.usuario_email === user || p.usuario_nome === user));
+
+      const grouped: any = {};
+      fPontos.forEach((p: any) => {
+        const u = p.usuario_nome || p.usuario_email;
+        const dateObj = new Date(p.data_hora);
+        const dateStr = dateObj.toLocaleDateString('pt-BR');
+        const timeStr = dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const dayOfWeek = dateObj.toLocaleDateString('pt-BR', { weekday: 'short' });
+        if (!grouped[u]) grouped[u] = {};
+        if (!grouped[u][dateStr]) {
+          grouped[u][dateStr] = { dateStr, dayOfWeek, dateObj, 'Entrada': null, 'Saída Almoço': null, 'Retorno Almoço': null, 'Saída': null };
+        }
+        const parts = p.tipo.split('::justificativa::');
+        const baseTipo = parts[0];
+        if (!grouped[u][dateStr][baseTipo]) {
+          grouped[u][dateStr][baseTipo] = { time: timeStr, justificativa: parts.length > 1 ? parts[1] : null };
+        }
+      });
+
+      const additionalTables: any[] = [];
+      Object.entries(grouped).forEach(([userName, dates]: any) => {
+        const tableRows: any[] = [];
+        const sortedDays = Object.values(dates).sort((a: any, b: any) => b.dateObj.getTime() - a.dateObj.getTime());
+        sortedDays.forEach((day: any) => {
+          tableRows.push([
+            day.dayOfWeek,
+            day.dateStr,
+            day['Entrada'] ? day['Entrada'].time + (day['Entrada'].justificativa ? `(${day['Entrada'].justificativa})` : '') : '-',
+            day['Saída Almoço'] ? day['Saída Almoço'].time + (day['Saída Almoço'].justificativa ? `(${day['Saída Almoço'].justificativa})` : '') : '-',
+            day['Retorno Almoço'] ? day['Retorno Almoço'].time + (day['Retorno Almoço'].justificativa ? `(${day['Retorno Almoço'].justificativa})` : '') : '-',
+            day['Saída'] ? day['Saída'].time + (day['Saída'].justificativa ? `(${day['Saída'].justificativa})` : '') : '-',
+          ]);
+        });
+        additionalTables.push({
+          title: `Colaborador: ${userName}`,
+          head: [["Dia", "Data", "Entrada", "Saída Almoço", "Retorno", "Saída"]],
+          body: tableRows
+        });
+      });
+
+      generateExecutiveReport({
+        title: user !== 'all' ? 'Folha de Ponto Individual' : 'Folha de Ponto Geral',
+        period: periodStr,
+        additionalTables,
+        filename: `folha_de_ponto_${new Date().toISOString().split('T')[0]}.pdf`
+      });
     }
-
-    doc.save(`relatorios_${userIdToExport === 'all' ? 'equipe' : userIdToExport}_${dateToExport || new Date().toISOString().split('T')[0]}.pdf`);
   };
+  
+
 
   // Fetch de Dados Inicial e Real-time
   useEffect(() => {
@@ -2541,9 +2665,9 @@ export default function App() {
   }, [user?.id, currentUserProfile, isAdmin]);
 
   const totals = useMemo(() => {
-    const income = transactions.filter(t => t.type === 'income' && t.status === 'received').reduce((acc, t) => acc + Number(t.valor || 0), 0);
+    const income = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.valor || 0), 0);
     const expenses = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.valor || 0), 0);
-    const pending = transactions.filter(t => t.type === 'income' && t.status !== 'received').reduce((acc, t) => acc + Number(t.valor || 0), 0);
+    const pending = 0; // Removing pending as it's no longer used for totals
     return { income, expenses, profit: income - expenses, pending };
   }, [transactions]);
 
@@ -2619,14 +2743,14 @@ export default function App() {
     if (error) console.error('Erro no logout:', error.message);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSave = async (e?: React.FormEvent | string) => {
+    if (e && typeof e !== 'string' && 'preventDefault' in e) e.preventDefault();
     if (!user) return;
     setIsProcessing(true);
     try {
       const collectionName: any = {
         'clients': 'clients',
-        'services': 'services',
+        'services': 'clients',
         'financial_control': 'transactions',
         'agenda': 'appointments',
         'tasks': 'tasks'
@@ -2643,6 +2767,7 @@ export default function App() {
       };
       
       delete payload._raw_email;
+      delete payload.id;
 
       // Garantir tipos numéricos para valores financeiros
       if (payload.valor) {
@@ -2650,7 +2775,7 @@ export default function App() {
       }
 
       // JSON Trick para Clientes + Serviços
-      if (collectionName === 'clients') {
+      if (collectionName === 'clients' || collectionName === 'services') {
         const parsedEmail = {
           email: payload.email || '',
           servico: payload.servico || '',
@@ -2673,9 +2798,17 @@ export default function App() {
 
       // Limpeza e mapeamento específico para Transações
       if (collectionName === 'transactions') {
-        if (payload.type === 'income') {
-          payload.descricao = payload.descricao || '';
-        }
+        const desc = payload.descricao || '';
+        const cat = payload.categoria || 'Serviços';
+        const forma = payload.forma_pagamento || 'PIX';
+        payload.descricao = JSON.stringify({ descricao: desc, categoria: cat, forma_pagamento: forma });
+        
+        delete payload.categoria;
+        delete payload.titulo;
+        delete payload.localizacao;
+        delete payload.hora;
+        delete payload._raw_descricao;
+        delete payload.forma_pagamento;
       }
 
       // Limpeza específica para Agendamentos
@@ -2693,6 +2826,7 @@ export default function App() {
         delete payload.descricao;
         delete payload.hora;
         delete payload._raw_titulo;
+        delete payload.categoria;
       }
 
       // Limpeza específica para Tarefas
@@ -2701,6 +2835,9 @@ export default function App() {
         if (!payload.titulo && payload.descricao) {
           payload.titulo = payload.descricao.slice(0, 80);
         }
+        delete payload.categoria;
+        delete payload.localizacao;
+        delete payload.hora;
       }
 
       if (payload.data === '') payload.data = null;
@@ -2708,6 +2845,7 @@ export default function App() {
         payload.data = null;
       }
       if (!editingId) payload.created_at = new Date().toISOString();
+      console.log('Sending payload:', JSON.stringify(payload));
 
       if (editingId) {
         const { error, status } = await supabase.from(collectionName).update(payload).eq('id', editingId);
@@ -2731,7 +2869,7 @@ export default function App() {
         // Explicit fetch after success to guarantee UI update
         fetchCollections(collectionName);
     } catch (err: any) {
-      console.error("Erro ao salvar:", err);
+      console.error("Erro ao salvar:", JSON.stringify(err)); alert("Erro ao salvar: " + (err.message || JSON.stringify(err)) + " | Code: " + err.code + " | Details: " + err.details);
       if (err.code === 'PGRST204') {
         setConnectionError(`Erro de Cache/Esquema: O Supabase ainda não reconheceu as novas colunas (como 'hora' ou 'titulo'). Execute o script SQL no dashboard do Supabase e use 'NOTIFY pgrst, "reload schema";'`);
       } else if (err.code === 'PGRST205' || err.code === '42P01') {
@@ -2981,7 +3119,7 @@ export default function App() {
               return (
                 <button
                   key={item.id}
-                  onClick={() => { setActiveTab(item.id); setSidebarOpen(false); }}
+                  onClick={() => { setActiveTab(item.id); setSidebarOpen(false); setFormData({}); setEditingId(null); setIsModalOpen(false); }}
                   className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold text-sm cursor-pointer relative group ${isActive ? 'bg-emerald-500 text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.2)]' : 'text-slate-500 hover:bg-slate-800 hover:text-slate-200'}`}
                 >
                   <Icon size={20} className={isActive ? 'text-slate-950' : 'text-slate-600 group-hover:text-emerald-500'} /> 
@@ -3098,6 +3236,7 @@ export default function App() {
                     setFormData={setFormData}
                     setEditingId={setEditingId}
                     setIsModalOpen={(open: boolean) => { setIsModalOpen(open); if(open) setIsHistoryModalOpen(false); }}
+                    extraAction={{ label: 'Relatório PDF', icon: <Download size={14} />, onClick: () => { setReportType('agenda'); setIsReportModalOpen(true); } }}
                     setItemToDelete={setItemToDelete}
                     isSystemAdmin={isSystemAdmin}
                     fetchCollections={fetchCollections}
@@ -3171,14 +3310,20 @@ export default function App() {
                          )}
                          <input 
                             type="date" 
-                            value={reportFilterDate}
-                           onChange={(e) => setReportFilterDate(e.target.value)}
-                           className="bg-transparent text-slate-300 text-xs font-bold rounded-lg px-2 py-1 outline-none"
-                           style={{ colorScheme: 'dark' }}
-                         />
-                         <button onClick={() => downloadDailyReports(USER_PROFILES[currentUserProfile]?.role === 'administrator' ? reportFilterUser : currentUserProfile, reportFilterDate)} className="flex items-center gap-2 px-3 py-2 bg-slate-950 text-emerald-500 rounded-lg font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all border border-slate-800">
-                           <Download size={14} /> Exportar Relatório
-                         </button>
+                            value={reportFilterDateStart}
+                          onChange={(e) => setReportFilterDateStart(e.target.value)}
+                          className="bg-transparent text-slate-300 text-xs font-bold rounded-lg px-2 py-1 outline-none"
+                          style={{ colorScheme: 'dark' }}
+                        />
+                        <span className="text-slate-500 text-xs font-bold">até</span>
+                        <input 
+                            type="date" 
+                            value={reportFilterDateEnd}
+                          onChange={(e) => setReportFilterDateEnd(e.target.value)}
+                          className="bg-transparent text-slate-300 text-xs font-bold rounded-lg px-2 py-1 outline-none"
+                          style={{ colorScheme: 'dark' }}
+                        />
+                         <button onClick={() => { setReportType('tasks'); setIsReportModalOpen(true); }} className="flex items-center gap-2 px-3 py-2 bg-slate-950 text-emerald-500 rounded-lg font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all border border-slate-800"><Download size={14} /> Relatório PDF</button>
                       </div>
                       <button 
                         onClick={() => { setEditingId(null); setFormData({ status: 'pending', prioridade: 'medium', data: new Date().toISOString().split('T')[0], atribuido_a: taskFilterPerson === 'all' ? currentUserProfile : taskFilterPerson }); setIsModalOpen(true); }}
@@ -3430,19 +3575,32 @@ export default function App() {
                 </div>
               )}
               
+                            {activeTab === 'financial_control' && (
+                      <FinancialReportView 
+                        transactions={transactions} 
+                        permissions={permissions} 
+                        setEditingId={setEditingId} 
+                        setFormData={setFormData} 
+                        setIsModalOpen={setIsModalOpen} 
+                        setItemToDelete={setItemToDelete}
+                        onDownload={() => { setReportType('finance'); setIsReportModalOpen(true); }}
+                      />
+                    )}
+
               {(activeTab === 'clients' || activeTab === 'services') && (
                 <ListView 
-                  title={(currentUserProfile === 'gabriel360@gmail.com' || currentUserProfile === 'cassio360@gmail.com') ? "Registro de Clientes" : "Registro de Clientes e Serviços"} 
-                  data={clients} 
-                  collName="clients" 
-                  onAdd={() => { setEditingId(null); setFormData({}); setIsModalOpen(true); }} 
-                  permissions={permissions}
+                   title={(currentUserProfile === 'gabriel360@gmail.com' || currentUserProfile === 'cassio360@gmail.com') ? "Registro de Clientes" : "Registro de Clientes e Serviços"} 
+                   data={clients} 
+                   collName="clients" 
+                   onAdd={() => { setEditingId(null); setFormData({}); setIsModalOpen(true); }} 
+                   permissions={permissions}
                   setFormData={setFormData}
                   setEditingId={setEditingId}
                   setIsModalOpen={(open: boolean) => { setIsModalOpen(open); if(open) setIsHistoryModalOpen(false); }}
                   setItemToDelete={setItemToDelete}
                   isSystemAdmin={isSystemAdmin}
                   fetchCollections={fetchCollections}
+                  extraAction={{ label: 'Relatório PDF', icon: <Download size={14} />, onClick: () => { setReportType('clients'); setIsReportModalOpen(true); } }}
                   columns={(currentUserProfile === 'gabriel360@gmail.com' || currentUserProfile === 'cassio360@gmail.com') 
                     ? [
                         {key:'nome', label:'Nome do Cliente', render: (val: any) => <span className="font-black text-white uppercase tracking-tight">{val}</span>}, 
@@ -3462,157 +3620,11 @@ export default function App() {
                       ]}
                 />
               )}
-
-              {activeTab === 'financial_control' && (
-                <div className="space-y-6">
-                  {/* Header */}
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800 pb-6">
-                    <div>
-                      <h2 className="text-2xl font-black text-white tracking-tighter">Finanças</h2>
-                      <p className="text-sm text-slate-400">Acompanhe suas receitas e despesas</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {permissions.canEdit('financial_control') && (
-                        <Button onClick={() => { setEditingId(null); setFormData({ type: 'income', status: 'pending', data: new Date().toISOString().split('T')[0] }); setIsModalOpen(true); }} className="py-2.5">
-                          <Plus size={16} /> Novo Lançamento
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* KPI Cards */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-                    <Card className="p-3 sm:p-5 flex flex-col justify-between bg-white text-slate-900 border-none rounded-[16px] shadow-sm transition-all hover:shadow-md">
-                      <div className="flex items-center justify-between mb-2 sm:mb-4">
-                        <span className="text-[10px] sm:text-sm font-bold text-slate-500">Lucro Bruto</span>
-                        <div className="w-6 h-6 sm:w-10 sm:h-10 rounded-full bg-emerald-50 flex items-center justify-center">
-                          <ArrowUpCircle size={14} className="text-emerald-500 sm:w-5 sm:h-5"/>
-                        </div>
-                      </div>
-                      <div>
-                        <h3 className="text-sm sm:text-2xl font-black tracking-tighter truncate">R$ {totals.income.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</h3>
-                        <span className="text-[8px] sm:text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full inline-flex items-center mt-1 sm:mt-2 uppercase tracking-widest">+12.5%</span>
-                      </div>
-                    </Card>
-
-                    <Card className="p-3 sm:p-5 flex flex-col justify-between bg-white text-slate-900 border-none rounded-[16px] shadow-sm transition-all hover:shadow-md">
-                      <div className="flex items-center justify-between mb-2 sm:mb-4">
-                        <span className="text-[10px] sm:text-sm font-bold text-slate-500">Despesas</span>
-                        <div className="w-6 h-6 sm:w-10 sm:h-10 rounded-full bg-red-50 flex items-center justify-center">
-                          <ArrowDownCircle size={14} className="text-red-500 sm:w-5 sm:h-5"/>
-                        </div>
-                      </div>
-                      <div>
-                        <h3 className="text-sm sm:text-2xl font-black tracking-tighter truncate">R$ {totals.expenses.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</h3>
-                        <span className="text-[8px] sm:text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full inline-flex items-center mt-1 sm:mt-2 uppercase tracking-widest">-4.2%</span>
-                      </div>
-                    </Card>
-
-                    <Card className="col-span-2 sm:col-span-1 p-3 sm:p-5 flex flex-col justify-between bg-white text-slate-900 border-none rounded-[16px] shadow-sm transition-all hover:shadow-md">
-                      <div className="flex items-center justify-between mb-2 sm:mb-4">
-                        <span className="text-[10px] sm:text-sm font-bold text-slate-500">Lucro Líquido</span>
-                        <div className="w-6 h-6 sm:w-10 sm:h-10 rounded-full bg-blue-50 flex items-center justify-center">
-                          <TrendingUp size={14} className="text-blue-500 sm:w-5 sm:h-5"/>
-                        </div>
-                      </div>
-                      <div>
-                        <h3 className="text-sm sm:text-2xl font-black tracking-tighter truncate">R$ {totals.profit.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</h3>
-                        <span className="text-[8px] sm:text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full inline-flex items-center mt-1 sm:mt-2 uppercase tracking-widest">+8.1%</span>
-                      </div>
-                    </Card>
-                  </div>
-
-                  {/* Content (Chart & Transactions) */}
-                  <div className="grid grid-cols-1 xl:grid-cols-[45%_55%] gap-4 sm:gap-6">
-                    {/* Left: BarChart */}
-                    <Card className="bg-white border-none rounded-[16px] shadow-sm p-4 sm:p-6 text-slate-900 flex flex-col min-h-[250px] sm:min-h-[350px]">
-                      <div className="mb-4 sm:mb-6 flex justify-between items-center">
-                        <div>
-                          <h3 className="text-base sm:text-lg font-black tracking-tight">Receitas vs Despesas</h3>
-                          <p className="text-xs sm:text-sm text-slate-500">Comparação mensal</p>
-                        </div>
-                        <div className="flex gap-2">
-                          <button onClick={() => setChartMonthOffset(prev => prev + 1)} className="p-1.5 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors text-slate-600">
-                            <ChevronLeft size={16} />
-                          </button>
-                          <button onClick={() => setChartMonthOffset(prev => Math.max(0, prev - 1))} className={`p-1.5 rounded-full transition-colors ${chartMonthOffset === 0 ? 'bg-slate-50 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}`} disabled={chartMonthOffset === 0}>
-                            <ChevronRight size={16} />
-                          </button>
-                        </div>
-                      </div>
-                      <div className="flex-1 w-full h-full min-h-[150px] sm:min-h-[200px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={financialChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }} dy={10} />
-                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }} tickFormatter={(value) => `R${value >= 1000 ? (value/1000).toFixed(0)+'k' : value}`} />
-                            <Tooltip 
-                              cursor={{fill: '#f8fafc'}}
-                              contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)', fontWeight: 'bold' }}
-                              formatter={(value: any) => [`R$ ${Number(value).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`, '']}
-                            />
-                            <Bar dataKey="receitas" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                            <Bar dataKey="despesas" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                            <Bar dataKey="lucro" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </Card>
-
-                    {/* Right: Recent Transactions */}
-                    <Card className="bg-white border-none rounded-[16px] shadow-sm p-4 sm:p-6 text-slate-900 flex flex-col h-full min-h-[300px] sm:min-h-[350px]">
-                      <div className="flex justify-between items-center mb-4 sm:mb-6">
-                        <h3 className="text-base sm:text-lg font-black tracking-tight">Últimos lançamentos</h3>
-                        <button onClick={() => setIsHistoryModalOpen(true)} className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-700 transition-colors bg-emerald-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full cursor-pointer">
-                          Ver histórico
-                        </button>
-                      </div>
-                      <div className="flex-1 flex flex-col gap-2 sm:gap-3 overflow-y-auto pr-1 sm:pr-2 scrollbar-hide">
-                        {transactions.slice(0, 5).map((t, i) => (
-                          <div key={i} className="flex items-center justify-between p-3 sm:p-4 bg-slate-50/80 rounded-xl hover:bg-slate-100 transition-colors border border-slate-100">
-                            <div className="flex items-center gap-3 sm:gap-4 truncate mr-2">
-                              <div className={`w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-full flex items-center justify-center ${t.type === 'income' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-                                {t.type === 'income' ? <ArrowUpCircle size={16} className="sm:w-5 sm:h-5" /> : <ArrowDownCircle size={16} className="sm:w-5 sm:h-5" />}
-                              </div>
-                              <div className="truncate">
-                                <h4 className="font-bold text-slate-900 text-xs sm:text-sm truncate">{t.descricao || t.cliente || 'Transação'}</h4>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[10px] sm:text-xs text-slate-500 font-medium">{new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
-                                  {t.type === 'income' && (
-                                    <span className={`text-[8px] sm:text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md ${t.status === 'received' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                                      {t.status === 'received' ? 'Recebido' : 'Pendente'}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                            <span className={`font-black tracking-tighter text-sm sm:text-base whitespace-nowrap ${t.type === 'income' ? 'text-emerald-600' : 'text-red-600'}`}>
-                              {t.type === 'income' ? '+' : '-'} R$ {Number(t.valor).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
-                            </span>
-                          </div>
-                        ))}
-                        {transactions.length === 0 && (
-                          <div className="flex-1 flex items-center justify-center text-slate-400 text-sm font-medium h-full">
-                            Nenhum lançamento recente
-                          </div>
-                        )}
-                      </div>
-                    </Card>
-                  </div>
-
-                </div>
-              )}
-              
               {activeTab === 'ponto' && (
-                <PontoView currentUserProfile={currentUserProfile} pontos={pontos} setPontos={setPontos} isSystemAdmin={isSystemAdmin} USER_PROFILES={USER_PROFILES} supabase={supabase} />
-              )}
-
-              {activeTab === 'reports' && (
-                <ReportsView clients={clients} tasks={tasks} appointments={appointments} transactions={transactions} dailyReports={dailyReports} />
+                <PontoView currentUserProfile={currentUserProfile} pontos={pontos} setPontos={setPontos} isSystemAdmin={isSystemAdmin} USER_PROFILES={USER_PROFILES} supabase={supabase} onDownload={() => { setReportType('ponto'); setIsReportModalOpen(true); }} />
               )}
             </motion.div>
           </AnimatePresence>
-
           {/* Modal Overlay History */}
           <AnimatePresence>
             {isHistoryModalOpen && (
@@ -3629,15 +3641,16 @@ export default function App() {
                   </div>
                   <div className="bg-slate-950 rounded-[24px] border border-slate-800 p-6 flex-1 shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-y-auto">
                     <ListView 
-                       title="Todas as Transações" 
-                       data={transactions}
+                        title="Todas as Transações" 
+                        data={transactions} 
                     collName="transactions" 
-                     onAdd={() => { setEditingId(null); setFormData({ type: 'income', status: 'pending', data: new Date().toISOString().split('T')[0] }); setIsModalOpen(true); setIsHistoryModalOpen(false); }} 
-                     permissions={permissions}
+                      onAdd={() => { setEditingId(null); setFormData({ type: 'income', status: 'pending', data: new Date().toISOString().split('T')[0] }); setIsModalOpen(true); setIsHistoryModalOpen(false); }} 
+                      permissions={permissions}
                     handleToggleStatus={handleToggleStatus}
                     setFormData={setFormData}
                     setEditingId={setEditingId}
-                    setIsModalOpen={(open) => { setIsModalOpen(open); if(open) setIsHistoryModalOpen(false); }}
+                    setIsModalOpen={(open: boolean) => { setIsModalOpen(open); if(open) setIsHistoryModalOpen(false); }}
+                    extraAction={{ label: 'Relatório PDF', icon: <Download size={14} />, onClick: () => { setReportType('finance'); setIsReportModalOpen(true); } }}
                     setItemToDelete={setItemToDelete}
                     isSystemAdmin={isSystemAdmin}
                     fetchCollections={fetchCollections}
@@ -3645,14 +3658,14 @@ export default function App() {
                       {
                         key: 'type', 
                         label: 'Tipo', 
-                        render: (val) => val === 'income' 
+                        render: (val: any) => val === 'income' 
                           ? <span className="flex items-center gap-1 text-emerald-400 font-black text-[10px] uppercase tracking-widest"><ArrowUpCircle size={14}/> Entrada</span> 
                           : <span className="flex items-center gap-1 text-red-400 font-black text-[10px] uppercase tracking-widest"><ArrowDownCircle size={14}/> Saída</span>
                       },
                       {
                         key: 'cliente', 
                         label: 'Descrição', 
-                        render: (_, item) => (
+                        render: (_: any, item: any) => (
                           <div className="flex flex-col">
                             {item.type === 'income' ? (
                               <>
@@ -3670,365 +3683,338 @@ export default function App() {
                       {
                         key: 'valor', 
                         label: 'Valor', 
-                        render: (val, item) => <span className={`font-black font-mono tracking-tighter ${item.type === 'income' ? 'text-emerald-400' : 'text-red-400'}`}>R$ {Number(val).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                        render: (val: any, item: any) => <span className={`font-black font-mono tracking-tighter ${item.type === 'income' ? 'text-emerald-400' : 'text-red-400'}`}>R$ {Number(val).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
                       },
                       {
                         key: 'data', 
                         label: 'Data', 
-                        render: (val) => <span className="font-mono text-slate-400 text-xs">{new Date(val).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
+                        render: (val: any) => <span className="font-mono text-slate-400 text-xs">{new Date(val).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
                       },
                       {
                         key: 'status', 
                         label: 'Status', 
-                        render: (val, item) => item.type === 'income' ? (
+                        render: (val: any, item: any) => item.type === 'income' ? (
                           val === 'received' 
-                           ? <span className="text-emerald-500 font-black text-[10px] uppercase tracking-widest flex items-center gap-1.5"><Check size={14}/> Pago</span> 
-                           : <span className="text-amber-500 font-black text-[10px] uppercase tracking-widest flex items-center gap-1.5"><Clock size={14}/> Pendente</span>
-                        ) : <span className="text-slate-600 font-black text-[10px] uppercase tracking-widest flex items-center gap-1.5"><Check size={14}/> Pago</span>
+                            ? <span className="px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-md text-[10px] font-bold uppercase tracking-wider">Recebido</span>
+                            : <span className="px-2 py-1 bg-amber-500/10 text-amber-400 rounded-md text-[10px] font-bold uppercase tracking-wider">Pendente</span>
+                        ) : (
+                          <span className="px-2 py-1 bg-red-500/10 text-red-400 rounded-md text-[10px] font-bold uppercase tracking-wider">Pago</span>
+                        )
                       }
                     ]}
-                   />
+                  />
                   </div>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
-
-          
-          
-          {/* Modal Overlay */}
+          {/* Modal de Confirmação de Exclusão */}
           <AnimatePresence>
-            {isModalOpen && (
-              <motion.div 
+            {itemToDelete && (
+              <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-xl shadow-2xl"
+                className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
               >
-                <motion.div 
-                  initial={{ scale: 0.9, y: 30 }}
-                  animate={{ scale: 1, y: 0 }}
-                  exit={{ scale: 0.9, y: 30 }}
-                >
-                  <Card className="w-full max-w-lg overflow-hidden p-0 bg-slate-950 border border-slate-800 shadow-[0_30px_100_rgba(0,0,0,0.5)]">
-                    <div className="bg-slate-950 p-8 border-b border-slate-800 flex justify-between items-center text-white">
-                      <div>
-                        <h3 className="text-2xl font-black uppercase tracking-tighter">
-                          {editingId 
-                            ? (activeTab === 'tasks' ? 'Editar Tarefa' : 'Atualizar Registro') 
-                            : (activeTab === 'tasks' ? 'Nova Tarefa' : 'Novo Protocolo')
-                          }
-                        </h3>
-                        <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest mt-1">Entrada de Dados / Central de Registro</p>
-                      </div>
-                      <button onClick={() => setIsModalOpen(false)} className="p-3 text-slate-600 hover:text-white transition-colors cursor-pointer bg-slate-900 rounded-2xl border border-slate-800 hover:border-slate-700 shadow-lg"><X size={24} /></button>
-                    </div>
-                    <form onSubmit={handleSave} className="p-8 space-y-6 max-h-[calc(100dvh-15rem)] overflow-y-auto scrollbar-hide">
-                      {(() => {
-                        switch (activeTab) {
-                          case 'clients': 
-                            const isRestrictedForm = currentUserProfile === 'gabriel360@gmail.com' || currentUserProfile === 'cassio360@gmail.com';
-                            return (
-                            <>
-                              <Input label="Nome do Cliente" value={formData.nome || ''} onChange={(e: any) => setFormData({...formData, nome: e.target.value})} required />
-                              {!isRestrictedForm && (
-                                <div className="grid grid-cols-1 gap-6">
-                                  <Input label="Valor do Serviço (R$)" type="number" step="0.01" value={formData.valor || ''} onChange={(e: any) => setFormData({...formData, valor: e.target.value})} />
-                                </div>
-                              )}
-                              <div className="grid grid-cols-1 gap-6">
-                                <div className="space-y-2">
-                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1">Status do Cliente/Serviço</label>
-                                  <select 
-                                    value={formData.status || 'active'} 
-                                    onChange={(e) => setFormData({...formData, status: e.target.value})}
-                                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-sm text-slate-300 font-bold outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all appearance-none cursor-pointer"
-                                  >
-                                    <option value="active">Ativo</option>
-                                    <option value="inactive">Inativo</option>
-                                  </select>
-                                </div>
-                              </div>
-                              <div className="grid grid-cols-1 gap-6">
-                                <Input label="CNPJ/MEI" placeholder="00.000.000/0000-00" value={formData.cnpj || ''} onChange={(e: any) => setFormData({...formData, cnpj: maskCNPJ(e.target.value)})} />
-                              </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                <Input 
-                                  label="Telefone Principal" 
-                                  placeholder="(00) 0 0000-0000"
-                                  value={formData.telefone || ''} 
-                                  onChange={(e: any) => setFormData({...formData, telefone: maskPhone(e.target.value)})} 
-                                />
-                                <Input 
-                                  label="Telefone Secundário" 
-                                  placeholder="(00) 0 0000-0000"
-                                  value={formData.telefone_secundario || ''} 
-                                  onChange={(e: any) => setFormData({...formData, telefone_secundario: maskPhone(e.target.value)})} 
-                                />
-                              </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                <Input label="Email Principal" type="email" placeholder="exemplo@gmail.com" value={formData.email || ''} onChange={(e: any) => setFormData({...formData, email: maskEmail(e.target.value)})} />
-                                <Input label="Email Secundário" type="email" placeholder="exemplo@gmail.com" value={formData.email_secundario || ''} onChange={(e: any) => setFormData({...formData, email_secundario: maskEmail(e.target.value)})} />
-                              </div>
-                              <div className="grid grid-cols-1 gap-6">
-                                <Input label="Rede Social (Instagram, etc.)" placeholder="@exemplo" value={formData.rede_social || ''} onChange={(e: any) => setFormData({...formData, rede_social: maskSocial(e.target.value)})} />
-                              </div>
-                              {!isRestrictedForm && (
-                                <TextArea 
-                                  label="Anotações / Serviços" 
-                                  placeholder="Anotações adicionais sobre o cliente..."
-                                  value={formData.servico || ''} 
-                                  onChange={(e: any) => setFormData({...formData, servico: e.target.value})} 
-                                />
-                              )}
-                            </>
-                          );
-                          case 'agenda': return (
-                            <>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                <Input label="Data" type="date" value={formData.data || ''} onChange={(e: any) => setFormData({...formData, data: e.target.value})} required />
-                                <Input label="Horário" type="time" value={formData.hora || ''} onChange={(e: any) => setFormData({...formData, hora: e.target.value})} />
-                              </div>
-                              <Input label="Título do Evento" placeholder="Nome do compromisso..." value={formData.titulo_evento || ''} onChange={(e: any) => setFormData({...formData, titulo_evento: e.target.value})} required />
-                              <Input label="Localização" placeholder="Onde será o evento..." value={formData.localizacao || ''} onChange={(e: any) => setFormData({...formData, localizacao: e.target.value})} required />
-                              <TextArea label="Observação" placeholder="Detalhes, observações ou requisitos..." value={formData.descricao || ''} onChange={(e: any) => setFormData({...formData, descricao: e.target.value})} />
-                            </>
-                          );
-                          case 'tasks': return (
-                            <div className="space-y-8">
-                              {/* Header de Status / Urgência */}
-                              {editingId && (
-                                <div className="p-6 bg-slate-900 border border-slate-800 rounded-[2rem] flex items-center justify-between shadow-inner group/status transition-all hover:bg-slate-800/50">
-                                  <div className="flex flex-col gap-1.5">
-                                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-[0.2em] ml-1">Estado Operacional</span>
-                                    <div className="flex items-center gap-2.5">
-                                      <div className={`w-3.5 h-3.5 rounded-full shadow-[0_0_15px_rgba(0,0,0,0.5)] border-2 border-slate-950 ${
-                                        formData.prioridade === 'high' ? 'bg-red-500 shadow-red-500/30' : 
-                                        formData.prioridade === 'low' ? 'bg-emerald-500 shadow-emerald-500/30' : 
-                                        'bg-amber-500 shadow-amber-500/30'
-                                      }`} />
-                                      <span className={`text-[11px] font-black uppercase tracking-[0.1em] ${
-                                        formData.prioridade === 'high' ? 'text-red-500' : 
-                                        formData.prioridade === 'low' ? 'text-emerald-500' : 
-                                        'text-amber-500'
-                                      }`}>
-                                        {formData.prioridade === 'high' ? 'Urgente' : 
-                                         formData.prioridade === 'low' ? 'Estável' : 
-                                         'Moderada'}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  
-                                  <button 
-                                    type="button"
-                                    onClick={() => setFormData({...formData, status: formData.status === 'done' ? 'pending' : 'done'})}
-                                    className={`px-6 py-3 rounded-2xl border font-black text-[10px] uppercase tracking-[0.2em] transition-all flex items-center justify-center active:scale-95 ${
-                                      formData.status === 'done' 
-                                      ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.15)]' 
-                                      : 'bg-slate-950 border-slate-800 text-slate-700 hover:text-white hover:border-slate-600 hover:bg-slate-900'
-                                    }`}
-                                  >
-                                    {formData.status === 'done' ? <CheckSquare size={20} /> : <div className="w-5 h-5 border-2 border-slate-800 rounded-lg group-hover/status:border-slate-500 transition-colors" />}
-                                  </button>
-                                </div>
-                              )}
-
-                              <div className="grid grid-cols-1 gap-6">
-                                {USER_PROFILES[currentUserProfile]?.role === 'administrator' && (
-                                  <Select 
-                                    label="Responsável" 
-                                    options={[{label: 'Selecionar Responsável...', value: ''}, ...RESPONSAVEIS]} 
-                                    value={formData.atribuido_a || ''} 
-                                    onChange={(e: any) => setFormData({...formData, atribuido_a: e.target.value})} 
-                                    required 
-                                  />
-                                )}
-
-                                <div className="p-1 sm:p-2 bg-slate-950/50 rounded-3xl border border-slate-900 shadow-inner">
-                                  <Select 
-                                    label="Nível" 
-                                    options={[
-                                      {label: 'Urgente', value: 'high'},
-                                      {label: 'Moderada', value: 'medium'},
-                                      {label: 'Estável', value: 'low'}
-                                    ]} 
-                                    value={formData.prioridade || 'medium'} 
-                                    onChange={(e: any) => setFormData({...formData, prioridade: e.target.value})} 
-                                    required 
-                                    className="bg-transparent border-none"
-                                  />
-                                </div>
-
-                                <Input label="Tarefa" placeholder="Título da tarefa..." value={formData.titulo || ''} onChange={(e: any) => setFormData({...formData, titulo: e.target.value})} required />
-                                <TextArea label="O que/como fazer?" placeholder="Descreva a tarefa em detalhes..." value={formData.descricao || ''} onChange={(e: any) => setFormData({...formData, descricao: e.target.value})} />
-                                
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                  <div className="flex items-center gap-3">
-                                    <input 
-                                      type="checkbox" 
-                                      id="is_recurring"
-                                      className="w-5 h-5 rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-slate-950"
-                                      checked={formData.is_recurring !== false} 
-                                      onChange={(e: any) => setFormData({...formData, is_recurring: e.target.checked})}
-                                    />
-                                    <label htmlFor="is_recurring" className="text-sm font-medium text-slate-300">Tarefa recorrente diária</label>
-                                  </div>
-                                  {formData.is_recurring === false && (
-                                  <div className="relative flex items-end gap-2">
-                                    <div className="flex-1">
-                                      <Input label="Data da Tarefa (Opcional)" type="date" value={formData.data || ''} onChange={(e: any) => setFormData({...formData, data: e.target.value})} />
-                                    </div>
-                                    {formData.data && (
-                                      <button 
-                                        type="button" 
-                                        onClick={() => setFormData({...formData, data: ''})}
-                                        className="h-[38px] px-3 mb-[2px] bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-colors border border-slate-700 hover:border-slate-600"
-                                      >
-                                        Limpar
-                                      </button>
-                                    )}
-                                  </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                          case 'financial_control': return (
-                            <>
-                              <div className="space-y-6">
-                                <div className="grid grid-cols-2 gap-3 bg-slate-950 p-2 rounded-[1.5rem] border border-slate-800">
-                                  <button type="button" onClick={() => setFormData({...formData, type: 'income'})} className={`py-4 rounded-xl text-[10px] font-black tracking-[0.2em] transition-all flex items-center justify-center gap-2 ${formData.type !== 'expense' ? 'bg-emerald-500 text-slate-950 shadow-lg' : 'text-slate-700 hover:text-slate-500'}`}>
-                                    <ArrowUpCircle size={14}/> ENTRADA
-                                  </button>
-                                  <button type="button" onClick={() => setFormData({...formData, type: 'expense'})} className={`py-4 rounded-xl text-[10px] font-black tracking-[0.2em] transition-all flex items-center justify-center gap-2 ${formData.type === 'expense' ? 'bg-red-500 text-slate-950 shadow-lg' : 'text-slate-700 hover:text-slate-500'}`}>
-                                    <ArrowDownCircle size={14}/> SAÍDA
-                                  </button>
-                                </div>
-                                
-                                {formData.type !== 'expense' && (
-                                  <Select 
-                                    label="Cliente" 
-                                    options={[{label: 'Selecionar Cliente...', value: ''}, ...clients.map(c => ({label: c.nome, value: c.nome}))]} 
-                                    value={formData.cliente || ''} 
-                                    onChange={(e: any) => {
-                                      const selectedClient = clients.find(c => c.nome === e.target.value);
-                                      const newVal: any = { ...formData, cliente: e.target.value };
-                                      if (selectedClient) {
-                                        newVal.valor = selectedClient.valor || '';
-                                      }
-                                      setFormData(newVal);
-                                    }} 
-                                    required={formData.type !== 'expense'}
-                                  />
-                                )}
-
-                                <div className="grid grid-cols-2 gap-6">
-                                  <div className="relative flex flex-col gap-1">
-                                    <Input label="Valor (R$)" type="number" step="0.01" value={formData.valor || ''} onChange={(e: any) => setFormData({...formData, valor: e.target.value})} required />
-                                    {formData.type !== 'expense' && formData.cliente && clients.find(c => c.nome === formData.cliente) && !clients.find(c => c.nome === formData.cliente)?.valor && (
-                                      <span className="text-[9px] text-slate-500 italic mt-1 ml-1">Este cliente não possui um valor padrão cadastrado.</span>
-                                    )}
-                                  </div>
-                                  <Input label="Data" type="date" value={formData.data || ''} onChange={(e: any) => setFormData({...formData, data: e.target.value})} required />
-                                </div>
-
-                                <TextArea 
-                                  label="Observação" 
-                                  placeholder="Detalhes..."
-                                  value={formData.descricao || ''} 
-                                  onChange={(e: any) => setFormData({...formData, descricao: e.target.value})} 
-                                />
-                              </div>
-                            </>
-                          );
-                          default: return null;
-                        }
-                      })()}
-                    </form>
-                    <div className="p-8 bg-slate-900 border-t border-slate-800 flex justify-end items-center gap-4">
-                      {editingId && permissions.canDelete(activeTab === 'financial_control' ? 'financial_control' : activeTab) && (
-                        <Button 
-                          variant="danger" 
-                          className="mr-auto px-4"
-                          onClick={() => {
-                            setItemToDelete({ 
-                              id: editingId, 
-                              collName: {
-                                'clients': 'clients',
-                                'financial_control': 'transactions',
-                                'agenda': 'appointments',
-                                'tasks': 'tasks'
-                              }[activeTab as string] || activeTab 
-                            });
-                            setIsModalOpen(false);
-                          }}
-                          disabled={isProcessing}
-                        >
-                          <Trash2 size={16} /> <span className="hidden sm:inline">Excluir</span>
-                        </Button>
-                      )}
-                      <Button variant="outline" onClick={() => setIsModalOpen(false)} disabled={isProcessing}>Descartar / Sair</Button>
-                      <Button onClick={handleSave} className="px-8 py-4" disabled={isProcessing}>
-                        {isProcessing ? 'Processando...' : activeTab === 'agenda' ? 'Sincronizar para todos' : 'Executar Sincronia'}
-                      </Button>
-                    </div>
-                  </Card>
-                </motion.div>
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+                  <h3 className="text-xl font-bold text-white mb-2">Confirmar Exclusão</h3>
+                  <p className="text-sm text-slate-400 mb-6">Tem certeza que deseja excluir este item? Esta ação não pode ser desfeita.</p>
+                  <div className="flex gap-3">
+                    <Button variant="secondary" className="flex-1" onClick={() => setItemToDelete(null)}>Cancelar</Button>
+                    <Button variant="danger" className="flex-1" onClick={async () => {
+                      if (!itemToDelete) return;
+                      const { id, type, collName } = itemToDelete;
+                      const coll = collName || (type === 'transaction' || type === 'transactions' ? 'transactions' : (type === 'client' ? 'clients' : (type === 'appointment' ? 'appointments' : 'tasks')));
+                      try {
+                        const { error } = await supabase.from(coll).delete().eq('id', id);
+                        if (error) throw error;
+                        fetchCollections(coll);
+                      } catch (err: any) {
+                        alert('Erro ao excluir: ' + err.message);
+                      } finally {
+                        setItemToDelete(null);
+                      }
+                    }}>Excluir</Button>
+                  </div>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
+          
+{/* Modal Overlay Principal */}
+          <AnimatePresence>
+            {isModalOpen && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto"
+              >
+                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl relative">
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-black text-white tracking-tighter">
+                      {editingId ? 'Editar Registro' : 'Novo Registro'}
+                    </h2>
+                    <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white transition-colors">
+                      <X size={24} />
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {(activeTab === 'clients' || activeTab === 'services') && (
+                      <>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nome do Cliente</label>
+                          <input type="text" value={formData.nome || ''} onChange={(e) => setFormData({...formData, nome: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Telefone</label>
+                          <input type="text" value={formData.telefone || ''} onChange={(e) => setFormData({...formData, telefone: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Email</label>
+                          <input type="email" value={formData.email || ''} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Rede Social</label>
+                          <input type="text" value={formData.rede_social || ''} onChange={(e) => setFormData({...formData, rede_social: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                        </div>
+                        {activeTab === 'services' && (
+                          <>
+                            <div className="space-y-2">
+                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Serviços</label>
+                              <input type="text" value={formData.servico || ''} onChange={(e) => setFormData({...formData, servico: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Tarifa (R$)</label>
+                              <input type="number" value={formData.valor || ''} onChange={(e) => setFormData({...formData, valor: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                            </div>
+                          </>
+                        )}
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Status</label>
+                          <select value={formData.status || 'active'} onChange={(e) => setFormData({...formData, status: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50">
+                            <option value="active">Ativo</option>
+                            <option value="inactive">Inativo</option>
+                          </select>
+                        </div>
+                      </>
+                    )}
 
-    <AnimatePresence>
-      {itemToDelete && (
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[70] flex items-center justify-center p-6 bg-slate-950/90 backdrop-blur-2xl"
-        >
-          <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 30 }}>
-            <Card className="w-full max-w-sm text-center bg-slate-950 shadow-[0_50px_100px_rgba(0,0,0,0.8)] border-slate-800 p-12">
-              <div className="mx-auto w-24 h-24 bg-red-500/10 text-red-500 rounded-[2rem] flex items-center justify-center mb-8 animate-pulse border border-red-500/20 shadow-[0_0_40px_rgba(239,68,68,0.2)]">
-                <AlertCircle size={48} />
-              </div>
-              <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-4">CRÍTICO: EXCLUIR?</h3>
-              <p className="text-slate-500 mb-10 text-[10px] font-bold uppercase tracking-[0.15em] leading-relaxed italic">A exclusão resultará em perda permanente de dados neste setor. Proceda com cautela.</p>
-              <div className="flex flex-col gap-3">
-                <Button variant="danger" className="py-4" onClick={handleDelete} disabled={isProcessing}>
-                  {isProcessing ? 'EXECUTANDO...' : 'CONFIRMAR EXCLUSÃO'}
-                </Button>
-                <Button variant="secondary" className="py-4" onClick={() => setItemToDelete(null)} disabled={isProcessing}>ABORTAR MISSÃO</Button>
-              </div>
-            </Card>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+                    {activeTab === 'tasks' && (
+                      <>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Título</label>
+                          <input type="text" value={formData.titulo || ''} onChange={(e) => setFormData({...formData, titulo: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Descrição</label>
+                          <textarea value={formData.descricao || ''} onChange={(e) => setFormData({...formData, descricao: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50 h-24 resize-none" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Data Prevista</label>
+                            <input type="date" value={formData.data || ''} onChange={(e) => setFormData({...formData, data: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Prioridade</label>
+                            <select value={formData.prioridade || 'medium'} onChange={(e) => setFormData({...formData, prioridade: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50">
+                              <option value="low">Baixa</option>
+                              <option value="medium">Média</option>
+                              <option value="high">Alta</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Responsável</label>
+                          <select value={formData.atribuido_a || currentUserProfile} onChange={(e) => setFormData({...formData, atribuido_a: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50">
+                            {RESPONSAVEIS.map((r: any) => (
+                              <option key={r.value} value={r.value}>{r.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </>
+                    )}
 
-    {/* Greeting Toast */}
-    <AnimatePresence>
-      {showGreeting && user && (
-        <motion.div 
-          initial={{ opacity: 0, y: 50, scale: 0.9 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 50, scale: 0.9 }}
-          className="fixed bottom-6 right-6 z-50 bg-slate-900 border border-emerald-500/30 p-4 rounded-2xl shadow-[0_10px_40px_rgba(16,185,129,0.15)] flex items-center gap-4"
-        >
-          <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-500 flex items-center justify-center">
-            <User size={20} />
-          </div>
-          <div>
-            <h4 className="text-white font-black text-sm uppercase tracking-tight">Bem-vindo(a)!</h4>
-            <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-0.5">
-              {USER_PROFILES[currentUserProfile]?.label || 'Operador'}
-            </p>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+                    {activeTab === 'agenda' && (
+                      <>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Compromisso</label>
+                          <input type="text" value={formData.titulo_evento || formData.titulo || ''} onChange={(e) => setFormData({...formData, titulo_evento: e.target.value, titulo: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Localização</label>
+                          <input type="text" value={formData.localizacao || ''} onChange={(e) => setFormData({...formData, localizacao: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Data</label>
+                            <input type="date" value={formData.data || ''} onChange={(e) => setFormData({...formData, data: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Hora</label>
+                            <input type="time" value={formData.hora || ''} onChange={(e) => setFormData({...formData, hora: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Observações</label>
+                          <textarea value={formData.descricao || ''} onChange={(e) => setFormData({...formData, descricao: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50 h-24 resize-none" />
+                        </div>
+                      </>
+                    )}
 
+                    {activeTab === 'financial_control' && (
+                      <>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Tipo</label>
+                            <div className="flex gap-2">
+                              <button className={`flex-1 py-2 rounded-xl text-sm font-bold uppercase tracking-widest transition-all border ${formData.type === 'income' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-slate-950 border-slate-800 text-slate-500'}`} onClick={() => setFormData({...formData, type: 'income'})}>Entrada</button>
+                              <button className={`flex-1 py-2 rounded-xl text-sm font-bold uppercase tracking-widest transition-all border ${formData.type === 'expense' ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-slate-950 border-slate-800 text-slate-500'}`} onClick={() => setFormData({...formData, type: 'expense'})}>Saída</button>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Categoria</label>
+                            <select value={formData.categoria || 'Serviços'} onChange={(e) => setFormData({...formData, categoria: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50">
+                              {formData.type === 'income' ? (
+                                <>
+                                  <option value="Serviços">Serviços</option>
+                                  <option value="Vendas">Vendas</option>
+                                  <option value="Outros">Outros</option>
+                                </>
+                              ) : (
+                                <>
+                                  <option value="Operacional">Operacional</option>
+                                  <option value="Marketing">Marketing</option>
+                                  <option value="Ferramentas">Ferramentas</option>
+                                  <option value="Impostos">Impostos</option>
+                                  <option value="Pessoal">Pessoal</option>
+                                  <option value="Outros">Outros</option>
+                                </>
+                              )}
+                            </select>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">{formData.type === 'income' ? 'Cliente / Origem' : 'Descrição'}</label>
+                          <input type="text" value={formData.cliente || formData.descricao || ''} onChange={(e) => setFormData({...formData, cliente: e.target.value, descricao: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Valor (R$)</label>
+                            <input type="number" step="0.01" value={formData.valor || ''} onChange={(e) => setFormData({...formData, valor: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Forma de Pgto</label>
+                            <select value={formData.forma_pagamento || 'PIX'} onChange={(e) => setFormData({...formData, forma_pagamento: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50">
+                              <option value="PIX">PIX</option>
+                              <option value="Cartão de Crédito">Cartão de Crédito</option>
+                              <option value="Boleto">Boleto</option>
+                              <option value="Transferência">Transferência</option>
+                              <option value="Dinheiro">Dinheiro</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Data</label>
+                            <input type="date" value={formData.data || ''} onChange={(e) => setFormData({...formData, data: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Status</label>
+                            <select value={formData.status || (formData.type === 'income' ? 'received' : 'paid')} onChange={(e) => setFormData({...formData, status: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50">
+                              {formData.type === 'income' ? (
+                                <>
+                                  <option value="received">Recebido</option>
+                                  <option value="pending">Pendente</option>
+                                </>
+                              ) : (
+                                <>
+                                  <option value="paid">Pago</option>
+                                  <option value="pending">Pendente</option>
+                                </>
+                              )}
+                            </select>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                    <div className="pt-4 flex gap-3">
+                      <Button variant="secondary" className="flex-1" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
+                      <Button variant="primary" className="flex-1" onClick={() => handleSave(activeTab)}>Salvar</Button>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
+      
+      <AnimatePresence>
+        {isReportModalOpen && (
+          <motion.div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-sm"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2"><Download size={20} className="text-emerald-500" /> Gerar Relatório</h3>
+                <button onClick={() => setIsReportModalOpen(false)} className="text-slate-500 hover:text-white transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Colaborador</label>
+                  <select
+                    value={reportFilterUser}
+                    onChange={(e) => setReportFilterUser(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50"
+                  >
+                    <option value="all">Todos os Usuários</option>
+                    {RESPONSAVEIS.map((r: any) => (
+                      <option key={r.value} value={r.value}>{r.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Data Inicial (opcional)</label>
+                  <input
+                    type="date"
+                    value={reportDateStart}
+                    onChange={(e) => setReportDateStart(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Data Final (opcional)</label>
+                  <input
+                    type="date"
+                    value={reportDateEnd}
+                    onChange={(e) => setReportDateEnd(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50"
+                  />
+                </div>
+              </div>
+              <Button
+                onClick={() => {
+                  executeReport(reportType, reportDateStart, reportDateEnd, reportFilterUser);
+                  setIsReportModalOpen(false);
+                }}
+                className="w-full py-4 text-xs font-bold uppercase tracking-widest"
+              >
+                Baixar PDF
+              </Button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       </main>
     </div>
   );
 }
+
