@@ -39,13 +39,17 @@ export const CRMView = ({
   setIsModalOpen,
   setItemToDelete,
   fetchCollections,
-  isSystemAdmin,
+  isSystemAdmin, USER_PROFILES,
   setActiveTab,
   setReportType,
   setIsReportModalOpen
 }: any) => {
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [searchTerm, setSearchTerm] = useState('');
+  
+  const allowedNames = ['Luan', 'Lucas', 'Nubia', 'Vagner', 'Caetano'];
+  const userLabel = USER_PROFILES && USER_PROFILES[currentUserProfile] ? USER_PROFILES[currentUserProfile].label : '';
+  const canViewValor = allowedNames.includes(userLabel);
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
 
@@ -255,7 +259,7 @@ export const CRMView = ({
                       </div>
                       <div className="flex gap-2 text-[10px] text-slate-500">
                         {client.telefone && <span className="flex items-center gap-1"><Phone size={10} /> {client.telefone}</span>}
-                        {client.valor && <span className="flex items-center gap-1 text-emerald-500/70"><DollarSign size={10} /> {client.valor}</span>}
+                        {canViewValor && client.valor_servico && <span className="flex items-center gap-1 text-emerald-500/70"><DollarSign size={10} /> {client.valor_servico}</span>}
                       </div>
                     </div>
                   ))}
@@ -274,6 +278,7 @@ export const CRMView = ({
                   <th className="px-4 py-4 font-black tracking-widest">Contato</th>
                   <th className="px-4 py-4 font-black tracking-widest">Status</th>
                   <th className="px-4 py-4 font-black tracking-widest">Prioridade</th>
+                  {canViewValor && <th className="px-4 py-4 font-black tracking-widest">Valor</th>}
                   <th className="px-4 py-4 font-black tracking-widest">Ações</th>
                 </tr>
               </thead>
@@ -304,6 +309,11 @@ export const CRMView = ({
                         </div>
                       )}
                     </td>
+                    {canViewValor && (
+                    <td className="px-4 py-4 font-mono text-emerald-400/80">
+                      {client.valor_servico || '--'}
+                    </td>
+                  )}
                     <td className="px-4 py-4 flex gap-2">
                        {permissions.canEdit('clients') && (
                          <button onClick={() => { setEditingId(client.id); setFormData(client); setIsModalOpen(true); }} className="w-8 h-8 rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 flex items-center justify-center transition-colors">
@@ -349,6 +359,7 @@ export const CRMView = ({
                     <div className="flex flex-wrap gap-4 text-xs font-medium text-slate-400">
                       {selectedClient.empresa && <span className="flex items-center gap-1"><Building2 size={14} /> {selectedClient.empresa}</span>}
                       {selectedClient.telefone && <span className="flex items-center gap-1"><Phone size={14} /> {selectedClient.telefone}</span>}
+                      {selectedClient.telefone_secundario && <span className="flex items-center gap-1"><Phone size={14} /> {selectedClient.telefone_secundario} (Sec.)</span>}
                       {selectedClient.email && <span className="flex items-center gap-1"><Mail size={14} /> {selectedClient.email}</span>}
                     </div>
                   </div>
@@ -381,6 +392,34 @@ export const CRMView = ({
                             <span className="text-slate-500">Responsável</span>
                             <span className="text-slate-300 line-clamp-1">{selectedClient.responsavel_atendimento || '--'}</span>
                          </div>
+                         {canViewValor && (
+                           <>
+                             <div className="flex justify-between">
+                                <span className="text-slate-500">Valor do Serviço</span>
+                                <span className="text-slate-300">{selectedClient.valor_servico || '--'}</span>
+                             </div>
+                             <div className="flex justify-between">
+                                <span className="text-slate-500">Foi Dividido?</span>
+                                <span className="text-slate-300">{selectedClient.dividido || 'Não'}</span>
+                             </div>
+                             {selectedClient.dividido === 'Sim' && (
+                               <>
+                                 <div className="flex justify-between">
+                                    <span className="text-slate-500">Data Inicial</span>
+                                    <span className="text-slate-300">{selectedClient.data_inicial ? new Date(selectedClient.data_inicial + 'T12:00:00').toLocaleDateString('pt-BR') : '--'}</span>
+                                 </div>
+                                 <div className="flex justify-between">
+                                    <span className="text-slate-500">Data Final</span>
+                                    <span className="text-slate-300">{selectedClient.data_final ? new Date(selectedClient.data_final + 'T12:00:00').toLocaleDateString('pt-BR') : '--'}</span>
+                                 </div>
+                                 <div className="flex justify-between">
+                                    <span className="text-slate-500">Valor Sugerido</span>
+                                    <span className="text-slate-300 font-medium text-emerald-400">{selectedClient.valor_sugerido || '--'}</span>
+                                 </div>
+                               </>
+                             )}
+                           </>
+                         )}
                          <div className="flex justify-between">
                             <span className="text-slate-500">Cadastrado em</span>
                             <span className="font-mono text-slate-300">

@@ -1751,7 +1751,43 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
       doc.text(`Total de Horas Trabalhadas: ${minToTime(totalWorked)}`, 14, currentY); currentY += 7;
       doc.text(`Total de Horas Extras: ${minToTime(totalExtra)}`, 14, currentY); currentY += 7;
       doc.text(`Total de Atrasos: ${minToTime(totalDelay)}`, 14, currentY); currentY += 7;
-      doc.text('Saldo do Banco de Horas: ---', 14, currentY); currentY += 20;
+      doc.text('Saldo do Banco de Horas: ---', 14, currentY); currentY += 15;
+
+      // Observações de Atraso/Antecipação
+      const observacoes: string[] = [];
+      sortedDays.forEach((day: any) => {
+        ['Entrada', 'Saída Almoço', 'Retorno Almoço', 'Saída'].forEach(tipo => {
+          if (day[tipo] && day[tipo].justificativa) {
+             observacoes.push(`${day.dateStr} (${tipo}): ${day[tipo].justificativa}`);
+          }
+        });
+      });
+
+      if (observacoes.length > 0) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.text('Observações de Atraso/Antecipação:', 14, currentY);
+        currentY += 6;
+        
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        observacoes.forEach(obs => {
+           if (currentY > 270) {
+              doc.addPage();
+              currentY = 20;
+           }
+           doc.text(obs, 14, currentY);
+           currentY += 5;
+        });
+        currentY += 10;
+      } else {
+        currentY += 10;
+      }
+
+      if (currentY > 250) {
+         doc.addPage();
+         currentY = 30;
+      }
 
       // Signatures
       doc.line(20, currentY, 90, currentY);
@@ -2905,9 +2941,19 @@ export default function App() {
           responsavel_atendimento: payload.responsavel_atendimento || payload.responsavel || '',
           prioridade: payload.prioridade || 'Média',
           anotacoes: payload.anotacoes || '',
-          timeline: payload.timeline || []
+          timeline: payload.timeline || [],
+          dividido: payload.dividido || 'Não',
+          valor_servico: payload.valor_servico || '',
+          data_inicial: payload.data_inicial || '',
+          data_final: payload.data_final || '',
+          valor_sugerido: payload.valor_sugerido || ''
         };
         payload.email = JSON.stringify(parsedEmail);
+        delete payload.dividido;
+        delete payload.valor_servico;
+        delete payload.data_inicial;
+        delete payload.data_final;
+        delete payload.valor_sugerido;
         delete payload.servico;
         delete payload.valor;
         delete payload.rede_social;
@@ -3245,8 +3291,7 @@ export default function App() {
               if (!permissions.canView(item.id)) return null;
               const Icon = item.icon;
               const isActive = activeTab === item.id;
-              const isRestricted = currentUserProfile === 'gabriel360@gmail.com' || currentUserProfile === 'cassio360@gmail.com';
-              const displayLabel = (item.id === 'clients' && isRestricted) ? 'Clientes' : item.label;
+              const displayLabel = item.label;
               return (
                 <button
                   key={item.id}
@@ -3401,6 +3446,7 @@ export default function App() {
                     extraAction={permissions?.canExportReport('agenda') ? { label: 'Relatório PDF', icon: <Download size={14} />, onClick: () => { setReportType('agenda'); setIsReportModalOpen(true); } } : undefined}
                     setItemToDelete={setItemToDelete}
                     isSystemAdmin={isSystemAdmin}
+                  USER_PROFILES={USER_PROFILES}
                     fetchCollections={fetchCollections}
                     columns={[
                       {
@@ -3784,10 +3830,12 @@ export default function App() {
                   setItemToDelete={setItemToDelete}
                   fetchCollections={fetchCollections}
                   isSystemAdmin={isSystemAdmin}
+                  USER_PROFILES={USER_PROFILES}
                 />
               )}
               {activeTab === 'ponto' && (
-                <PontoView currentUserProfile={currentUserProfile} pontos={pontos} setPontos={setPontos} isSystemAdmin={isSystemAdmin} USER_PROFILES={USER_PROFILES} supabase={supabase} permissions={permissions} />
+                <PontoView currentUserProfile={currentUserProfile} pontos={pontos} setPontos={setPontos} isSystemAdmin={isSystemAdmin}
+                  USER_PROFILES={USER_PROFILES} supabase={supabase} permissions={permissions} />
               )}
             </motion.div>
           </AnimatePresence>
@@ -3819,6 +3867,7 @@ export default function App() {
                     extraAction={permissions?.canExportReport('finance') ? { label: 'Relatório PDF', icon: <Download size={14} />, onClick: () => { setReportType('finance'); setIsReportModalOpen(true); } } : undefined}
                     setItemToDelete={setItemToDelete}
                     isSystemAdmin={isSystemAdmin}
+                  USER_PROFILES={USER_PROFILES}
                     fetchCollections={fetchCollections}
                     columns={[
                       {
@@ -3933,31 +3982,35 @@ export default function App() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                            <div className="space-y-2">
                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nome Completo</label>
-                             <input type="text" value={formData.nome || ''} onChange={(e) => setFormData({...formData, nome: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                             <input type="text" placeholder="Ex: João da Silva" value={formData.nome || ''} onChange={(e) => setFormData({...formData, nome: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
                            </div>
                            <div className="space-y-2">
                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Empresa</label>
-                             <input type="text" value={formData.empresa || ''} onChange={(e) => setFormData({...formData, empresa: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                             <input type="text" placeholder="Ex: Freitas Hub Agência" value={formData.empresa || ''} onChange={(e) => setFormData({...formData, empresa: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
                            </div>
                            <div className="space-y-2">
                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">CPF/CNPJ</label>
-                             <input type="text" value={formData.cnpj || ''} onChange={(e) => setFormData({...formData, cnpj: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                             <input type="text" placeholder="Ex: 00.000.000/0000-00" value={formData.cnpj || ''} onChange={(e) => setFormData({...formData, cnpj: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
                            </div>
                            <div className="space-y-2">
                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Telefone / WhatsApp</label>
-                             <input type="text" value={formData.telefone || ''} onChange={(e) => setFormData({...formData, telefone: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                             <input type="text" placeholder="Ex: (11) 99999-9999" value={formData.telefone || ''} onChange={(e) => setFormData({...formData, telefone: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                           </div>
+                           <div className="space-y-2">
+                             <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Telefone Secundário</label>
+                             <input type="text" placeholder="Ex: (11) 98888-8888" value={formData.telefone_secundario || ''} onChange={(e) => setFormData({...formData, telefone_secundario: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
                            </div>
                            <div className="space-y-2">
                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Email</label>
-                             <input type="email" value={formData.email || ''} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                             <input type="email" placeholder="Ex: contato@empresa.com" value={formData.email || ''} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
                            </div>
                            <div className="space-y-2">
                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Origem do Lead</label>
-                             <input type="text" value={formData.origem || ''} onChange={(e) => setFormData({...formData, origem: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                             <input type="text" placeholder="Ex: Instagram, Indicação, Google" value={formData.origem || ''} onChange={(e) => setFormData({...formData, origem: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
                            </div>
                            <div className="space-y-2 md:col-span-2">
                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Endereço Completo (com Cidade e Estado)</label>
-                             <input type="text" value={formData.endereco || ''} onChange={(e) => setFormData({...formData, endereco: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                             <input type="text" placeholder="Ex: Rua das Flores, 123 - Centro, São Paulo - SP" value={formData.endereco || ''} onChange={(e) => setFormData({...formData, endereco: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
                            </div>
                            <div className="space-y-2">
                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Status (Funil)</label>
@@ -3981,9 +4034,36 @@ export default function App() {
                                <option value="Baixa">Baixa</option>
                              </select>
                            </div>
+                           <div className="space-y-2">
+                             <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Valor do Serviço</label>
+                             <input type="text" placeholder="R$ 0,00" value={formData.valor_servico || ''} onChange={(e) => setFormData({...formData, valor_servico: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                           </div>
+                           <div className="space-y-2">
+                             <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Serviço Dividido?</label>
+                             <select value={formData.dividido || 'Não'} onChange={(e) => setFormData({...formData, dividido: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50">
+                               <option value="Não">Não</option>
+                               <option value="Sim">Sim</option>
+                             </select>
+                           </div>
+                           {formData.dividido === 'Sim' && (
+                             <>
+                               <div className="space-y-2">
+                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Data Inicial</label>
+                                 <input type="date" value={formData.data_inicial || ''} onChange={(e) => setFormData({...formData, data_inicial: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                               </div>
+                               <div className="space-y-2">
+                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Data Final</label>
+                                 <input type="date" value={formData.data_final || ''} onChange={(e) => setFormData({...formData, data_final: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                               </div>
+                               <div className="space-y-2 md:col-span-2">
+                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Valor Sugerido (Parcela)</label>
+                                 <input type="text" placeholder="R$ 0,00" value={formData.valor_sugerido || ''} onChange={(e) => setFormData({...formData, valor_sugerido: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                               </div>
+                             </>
+                           )}
                            <div className="space-y-2 md:col-span-2">
                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Anotações / Histórico Inicial</label>
-                             <textarea value={formData.anotacoes || ''} onChange={(e) => setFormData({...formData, anotacoes: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50 h-24 resize-none" />
+                             <textarea placeholder="Ex: Cliente interessado no serviço X, entrou em contato dia..." value={formData.anotacoes || ''} onChange={(e) => setFormData({...formData, anotacoes: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50 h-24 resize-none" />
                            </div>
                         </div>
                       </>
