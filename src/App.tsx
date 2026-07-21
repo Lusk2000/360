@@ -1,3 +1,4 @@
+import { CRMView } from './components/CRMView';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -45,11 +46,9 @@ const USER_PROFILES: any = {
     label: 'Lucas',
     email: 'lucas360admin@gmail.com',
     permissions: { 
-      full_access: true, 
-      financial: 'view', 
+      allowed_tabs: ['clients', 'servicos', 'financial_control', 'agenda', 'tasks', 'ponto'],
+      financial: 'view',
       reports: 'none',
-      agenda: 'full', 
-      services: 'full',
       can_delete: true
     } 
   },
@@ -58,35 +57,21 @@ const USER_PROFILES: any = {
     label: 'Nubia',
     email: 'nubia360admin@gmail.com',
     permissions: { 
-      full_access: true, 
-      financial: 'full', 
+      allowed_tabs: ['clients', 'servicos', 'financial_control', 'agenda', 'tasks', 'ponto'],
+      financial: 'full',
       reports: 'full',
-      agenda: 'full', 
-      services: 'full',
       can_delete: true
     } 
   },
-  'gabriel360@gmail.com': { 
-    role: 'editor', 
-    label: 'Gabriel',
-    email: 'gabriel360@gmail.com',
+  'vagnergestor360@gmail.com': { 
+    role: 'administrator', 
+    label: 'Vagner',
+    email: 'vagnergestor360@gmail.com',
     permissions: { 
-      full_access: false, 
-      financial: 'none', 
-      agenda: 'full', 
-      services: 'full',
-      can_delete: true
-    } 
-  },
-  'cassio360@gmail.com': { 
-    role: 'editor', 
-    label: 'Cassio',
-    email: 'cassio360@gmail.com',
-    permissions: { 
-      full_access: false, 
-      financial: 'none', 
-      agenda: 'none', 
-      services: 'full',
+      allowed_tabs: ['clients', 'servicos', 'financial_control', 'agenda', 'tasks', 'ponto'],
+      financial: 'full',
+      reports: 'full',
+      ponto_history_only: true,
       can_delete: true
     } 
   },
@@ -95,39 +80,42 @@ const USER_PROFILES: any = {
     label: 'Luan',
     email: 'luan360@gmail.com',
     permissions: { 
-      full_access: true, 
-      financial: 'view', 
+      allowed_tabs: ['clients', 'servicos', 'financial_control', 'agenda', 'tasks', 'ponto'],
+      financial: 'view',
       reports: 'none',
-      agenda: 'full', 
-      services: 'full',
       can_delete: true
     } 
   },
-  
   'caetanomentor360@gmail.com': { 
-    role: 'administrator', 
+    role: 'editor', 
     label: 'Caetano',
     email: 'caetanomentor360@gmail.com',
     permissions: { 
-      full_access: true, 
-      financial: 'full', 
-      reports: 'full',
-      agenda: 'full', 
-      services: 'full',
+      allowed_tabs: ['clients', 'agenda', 'tasks', 'financial_control'],
+      financial: 'view',
+      reports: 'none',
       can_delete: true
     } 
   },
-
-  'vagnergestor360@gmail.com': { 
-    role: 'administrator', 
-    label: 'Vagner',
-    email: 'vagnergestor360@gmail.com',
+  'gabriel360@gmail.com': { 
+    role: 'editor', 
+    label: 'Gabriel',
+    email: 'gabriel360@gmail.com',
     permissions: { 
-      full_access: true, 
-      financial: 'full', 
-      reports: 'full',
-      agenda: 'full', 
-      services: 'full',
+      allowed_tabs: ['ponto', 'clients', 'agenda', 'tasks'],
+      financial: 'none',
+      reports: 'none',
+      can_delete: true
+    } 
+  },
+  'cassio360@gmail.com': { 
+    role: 'editor', 
+    label: 'Cassio',
+    email: 'cassio360@gmail.com',
+    permissions: { 
+      allowed_tabs: ['clients', 'tasks'],
+      financial: 'none',
+      reports: 'none',
       can_delete: true
     } 
   }
@@ -255,7 +243,7 @@ const TextArea = ({ label, ...props }: any) => (
 
 const navItems = [
   { id: 'ponto', label: 'Ponto Eletrônico', icon: Clock, protected: false },
-  { id: 'clients', label: 'Clientes e Serviços', icon: Users, protected: false },
+  { id: 'clients', label: 'Cadastro CRM', icon: Users, protected: false },
   { id: 'agenda', label: 'Agenda', icon: CalendarIcon, protected: false },
   { id: 'tasks', label: 'Tarefas', icon: ListTodo, protected: false },
   { id: 'financial_control', label: 'Finanças', icon: DollarSign, protected: true },
@@ -1223,10 +1211,10 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
 
 // --- App Principal ---
 
-const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_PROFILES, supabase }: any) => {
+const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_PROFILES, supabase, permissions }: any) => {
   const [currentTime, setCurrentTime] = React.useState(new Date());
   const [isProcessing, setIsProcessing] = React.useState(false);
-  const [showHistory, setShowHistory] = React.useState(false);
+  const [showHistory, setShowHistory] = React.useState(() => USER_PROFILES[currentUserProfile]?.permissions?.ponto_history_only || false);
   const [editingPonto, setEditingPonto] = React.useState<any>(null);
   const [editTime, setEditTime] = React.useState('');
   const [confirmDelete, setConfirmDelete] = React.useState(false);
@@ -1249,26 +1237,9 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
     duracao_almoco: 60,
   });
 
-  const configPonto = React.useMemo(() => {
+  const baseConfigPonto = React.useMemo(() => {
     const cfgs = pontos.filter((p: any) => p.tipo === 'CONFIG').sort((a: any, b: any) => new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime());
-    if (cfgs.length > 0 && cfgs[0].usuario_nome) {
-      try {
-        const parsed = JSON.parse(cfgs[0].usuario_nome);
-        // Fallback para quem usava apenas "tolerancia"
-        if (parsed.tolerancia !== undefined && parsed.tolerancia_entrada_antes === undefined) {
-          parsed.tolerancia_entrada_antes = parsed.tolerancia;
-          parsed.tolerancia_entrada_depois = parsed.tolerancia;
-          parsed.tolerancia_inicio_almoco_antes = parsed.tolerancia;
-          parsed.tolerancia_inicio_almoco_depois = parsed.tolerancia;
-          parsed.tolerancia_fim_almoco_antes = parsed.tolerancia;
-          parsed.tolerancia_fim_almoco_depois = parsed.tolerancia;
-          parsed.tolerancia_saida_antes = parsed.tolerancia;
-          parsed.tolerancia_saida_depois = parsed.tolerancia;
-        }
-        return parsed;
-      } catch(e) {}
-    }
-    return {
+    let parsed: any = {
       hora_entrada: '08:00',
       tolerancia_entrada_antes: 15,
       tolerancia_entrada_depois: 15,
@@ -1281,19 +1252,58 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
       hora_saida: '18:00',
       tolerancia_saida_antes: 15,
       tolerancia_saida_depois: 15,
+      userConfigs: {}
     };
+    if (cfgs.length > 0 && cfgs[0].usuario_nome) {
+      try {
+        const loaded = JSON.parse(cfgs[0].usuario_nome);
+        parsed = { ...parsed, ...loaded };
+        if (parsed.tolerancia !== undefined && parsed.tolerancia_entrada_antes === undefined) {
+          parsed.tolerancia_entrada_antes = parsed.tolerancia;
+          parsed.tolerancia_entrada_depois = parsed.tolerancia;
+          parsed.tolerancia_inicio_almoco_antes = parsed.tolerancia;
+          parsed.tolerancia_inicio_almoco_depois = parsed.tolerancia;
+          parsed.tolerancia_fim_almoco_antes = parsed.tolerancia;
+          parsed.tolerancia_fim_almoco_depois = parsed.tolerancia;
+          parsed.tolerancia_saida_antes = parsed.tolerancia;
+          parsed.tolerancia_saida_depois = parsed.tolerancia;
+        }
+      } catch(e) {}
+    }
+    return parsed;
   }, [pontos]);
 
+  const configPonto = React.useMemo(() => {
+      if (baseConfigPonto.userConfigs && baseConfigPonto.userConfigs[currentUserProfile]) {
+          return baseConfigPonto.userConfigs[currentUserProfile];
+      }
+      return baseConfigPonto;
+  }, [baseConfigPonto, currentUserProfile]);
+
+  const [settingsUserFilter, setSettingsUserFilter] = useState('all');
+
   React.useEffect(() => {
-    setSettingsFormData(configPonto);
-  }, [configPonto, showSettings]);
+    if (settingsUserFilter === 'all') {
+      setSettingsFormData(baseConfigPonto);
+    } else {
+      setSettingsFormData(baseConfigPonto.userConfigs?.[settingsUserFilter] || baseConfigPonto);
+    }
+  }, [baseConfigPonto, showSettings, settingsUserFilter]);
 
   const saveSettings = async () => {
     setIsProcessing(true);
     try {
+      let finalConfigToSave = { ...baseConfigPonto };
+      if (settingsUserFilter === 'all') {
+         finalConfigToSave = { ...finalConfigToSave, ...settingsFormData };
+      } else {
+         if (!finalConfigToSave.userConfigs) finalConfigToSave.userConfigs = {};
+         finalConfigToSave.userConfigs[settingsUserFilter] = settingsFormData;
+      }
+      
       const payload = {
         usuario_email: 'system_config',
-        usuario_nome: JSON.stringify(settingsFormData),
+        usuario_nome: JSON.stringify(finalConfigToSave),
         tipo: 'CONFIG',
         data_hora: new Date().toISOString(),
         created_at: new Date().toISOString()
@@ -1354,6 +1364,9 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
   };
 
   const isOutsideTolerance = (tipo: string, time: Date) => {
+    // 1. Remover a exibição imediata da janela de atraso/antecipação ao registrar a Saída para Almoço.
+    if (tipo === 'Saída Almoço') return false;
+
     const currentMinutes = time.getHours() * 60 + time.getMinutes();
     
     let expectedTime = '';
@@ -1364,10 +1377,6 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
       expectedTime = configPonto.hora_entrada || '08:00';
       tolAntes = configPonto.tolerancia_entrada_antes ?? 15;
       tolDepois = configPonto.tolerancia_entrada_depois ?? 15;
-    } else if (tipo === 'Saída Almoço') {
-      expectedTime = configPonto.hora_inicio_almoco || '12:00';
-      tolAntes = configPonto.tolerancia_inicio_almoco_antes ?? 15;
-      tolDepois = configPonto.tolerancia_inicio_almoco_depois ?? 15;
     } else if (tipo === 'Retorno Almoço') {
       expectedTime = configPonto.hora_fim_almoco || '13:00';
       if (configPonto.duracao_almoco) {
@@ -1394,10 +1403,53 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
     const [eh, em] = expectedTime.split(':').map(Number);
     const expectedMinutes = eh * 60 + em;
 
+    // 2. Não exibir alerta de antecipação para 'Retorno Almoço' (apenas alerta de atraso após a tolerância)
+    if (tipo === 'Retorno Almoço') {
+      return currentMinutes > (expectedMinutes + tolDepois);
+    }
+
     return currentMinutes < (expectedMinutes - tolAntes) || currentMinutes > (expectedMinutes + tolDepois);
   };
 
+  const isTooEarly = (tipo: string, time: Date) => {
+    const currentMinutes = time.getHours() * 60 + time.getMinutes();
+    let expectedTime = '';
+    let tolAntes = 0;
+    if (tipo === 'Entrada') {
+      expectedTime = configPonto.hora_entrada || '08:00';
+      tolAntes = configPonto.tolerancia_entrada_antes ?? 15;
+    } else if (tipo === 'Saída Almoço') {
+      expectedTime = configPonto.hora_inicio_almoco || '12:00';
+      tolAntes = configPonto.tolerancia_inicio_almoco_antes ?? 15;
+    } else if (tipo === 'Retorno Almoço') {
+      expectedTime = configPonto.hora_fim_almoco || '13:00';
+      if (configPonto.duracao_almoco) {
+        const todayStr = new Date(time.getTime() - (time.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+        const saidaAlmoco = pontos.find((p: any) => p.usuario_email === currentUserProfile && p.tipo === 'Saída Almoço' && new Date(p.data_hora).toISOString().startsWith(todayStr));
+        if (saidaAlmoco) {
+          const saidaTime = new Date(saidaAlmoco.data_hora);
+          const expectedReturnMinutes = saidaTime.getHours() * 60 + saidaTime.getMinutes() + Number(configPonto.duracao_almoco);
+          const expectedH = Math.floor(expectedReturnMinutes / 60).toString().padStart(2, '0');
+          const expectedM = (expectedReturnMinutes % 60).toString().padStart(2, '0');
+          expectedTime = `${expectedH}:${expectedM}`;
+        }
+      }
+      tolAntes = configPonto.tolerancia_fim_almoco_antes ?? 15;
+    } else if (tipo === 'Saída') {
+      expectedTime = configPonto.hora_saida || '18:00';
+      tolAntes = configPonto.tolerancia_saida_antes ?? 15;
+    }
+    if (!expectedTime) return false;
+    const [eh, em] = expectedTime.split(':').map(Number);
+    const expectedMinutes = eh * 60 + em;
+    return currentMinutes < (expectedMinutes - tolAntes);
+  };
+
   const initiatePonto = (tipo: string) => {
+    if (isTooEarly(tipo, new Date())) {
+      alert("Horário ainda não liberado para registro de " + tipo + ".");
+      return;
+    }
     if (isOutsideTolerance(tipo, new Date())) {
       setPendingPonto(tipo);
       setJustificativa('');
@@ -1454,12 +1506,11 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
       dateObj.setHours(parseInt(hours, 10));
       dateObj.setMinutes(parseInt(minutes, 10));
       const newDateStr = dateObj.toISOString();
-
       const { error } = await supabase.from('pontos').update({ data_hora: newDateStr }).eq('id', editingPonto.id);
       if (error) throw error;
-
       setPontos((prev: any) => prev.map((p: any) => p.id === editingPonto.id ? { ...p, data_hora: newDateStr } : p));
       setEditingPonto(null);
+      alert('Registro editado com sucesso!');
     } catch (err: any) {
       alert('Erro ao atualizar: ' + err.message);
     } finally {
@@ -1477,10 +1528,10 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
     try {
       const { error } = await supabase.from('pontos').delete().eq('id', editingPonto.id);
       if (error) throw error;
-
       setPontos((prev: any) => prev.filter((p: any) => p.id !== editingPonto.id));
       setEditingPonto(null);
       setConfirmDelete(false);
+      alert('Registro excluído com sucesso!');
     } catch (err: any) {
       alert('Erro ao excluir: ' + err.message);
     } finally {
@@ -1508,8 +1559,21 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
   };
 
   const meusPontos = pontos.filter((p: any) => p.usuario_email === currentUserProfile).sort((a: any, b: any) => new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime());
-  const todosPontos = pontos.sort((a: any, b: any) => new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime());
-  const displayPontos = (USER_PROFILES[currentUserProfile]?.role === 'administrator' ? todosPontos : meusPontos).filter((p: any) => p.tipo !== 'CONFIG');
+  const todosPontos = [...pontos].sort((a: any, b: any) => new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime());
+  const displayPontos = (USER_PROFILES[currentUserProfile]?.role === 'administrator' ? todosPontos : meusPontos).filter((p: any) => p.tipo !== 'CONFIG' && new Date(p.data_hora) >= new Date('2026-07-20T00:00:00Z'));
+
+  const timeToMin = (t: any) => {
+    if (!t) return null;
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  const minToTime = (m: any) => {
+    if (m === null || m === undefined || isNaN(m) || m < 0) return '---';
+    const h = Math.floor(m / 60);
+    const mins = m % 60;
+    return `${h.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+  };
 
   const groupedPontos = React.useMemo(() => {
     const groups: Record<string, Record<string, any>> = {};
@@ -1537,7 +1601,6 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
       const parts = p.tipo.split('::justificativa::');
       const baseTipo = parts[0];
       const justificativaValue = parts.length > 1 ? parts[1] : null;
-
       if (!groups[user][dateStr][baseTipo]) {
         groups[user][dateStr][baseTipo] = {
           id: p.id,
@@ -1552,46 +1615,158 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
       }
     });
 
+    Object.keys(groups).forEach(user => {
+       const userEmail = Object.values(groups[user])[0]?.['Entrada']?.usuario_email || user;
+       const uConfig = baseConfigPonto.userConfigs?.[userEmail] || baseConfigPonto;
+       const expEntrada = timeToMin(uConfig.hora_entrada);
+       const expSaidaAlmoco = timeToMin(uConfig.hora_inicio_almoco);
+       const expRetornoAlmoco = timeToMin(uConfig.hora_fim_almoco);
+       const expSaida = timeToMin(uConfig.hora_saida);
+       
+       let expectedTotal = 0;
+       if (expEntrada !== null && expSaidaAlmoco !== null) expectedTotal += (expSaidaAlmoco - expEntrada);
+       if (expRetornoAlmoco !== null && expSaida !== null) expectedTotal += (expSaida - expRetornoAlmoco);
+
+       Object.keys(groups[user]).forEach(dateStr => {
+          const day = groups[user][dateStr];
+          const t1 = day['Entrada'] ? timeToMin(day['Entrada'].time) : null;
+          const t2 = day['Saída Almoço'] ? timeToMin(day['Saída Almoço'].time) : null;
+          const t3 = day['Retorno Almoço'] ? timeToMin(day['Retorno Almoço'].time) : null;
+          const t4 = day['Saída'] ? timeToMin(day['Saída'].time) : null;
+
+          let worked = 0;
+          let hasIncomplete = false;
+          
+          if (t1 !== null && t2 !== null) {
+             worked += (t2 - t1);
+          } else if (t1 !== null || t2 !== null) {
+             hasIncomplete = true;
+          }
+
+          if (t3 !== null && t4 !== null) {
+             worked += (t4 - t3);
+          } else if (t3 !== null || t4 !== null) {
+             hasIncomplete = true;
+          }
+          
+          if (!t1 && !t2 && !t3 && !t4) {
+              day.workedMin = 0;
+              day.extraMin = 0;
+              day.delayMin = 0;
+              return;
+          }
+          
+          day.workedMin = hasIncomplete ? null : worked;
+          day.extraMin = (day.workedMin !== null && day.workedMin > expectedTotal) ? (day.workedMin - expectedTotal) : 0;
+          day.delayMin = (day.workedMin !== null && day.workedMin < expectedTotal) ? (expectedTotal - day.workedMin) : 0;
+       });
+    });
+
     return groups;
-  }, [displayPontos]);
+  }, [displayPontos, baseConfigPonto]);
 
-  const exportarFolhaPontoPDF = () => {
-    const titulo = USER_PROFILES[currentUserProfile]?.role === 'administrator' ? 'Folha de Ponto Geral' : 'Minha Folha de Ponto';
-    
-    const additionalTables: ReportTable[] = [];
+  const exportarFolhaPontoPDF = async () => {
+    const [jspdf, autoTableModule] = await Promise.all([
+      import('jspdf'),
+      import('jspdf-autotable')
+    ]);
+    const jsPDF = jspdf.default;
+    const autoTable = autoTableModule.default;
+    const doc = new jsPDF();
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('pt-BR');
+    let isFirstPage = true;
 
-    Object.entries(groupedPontos).forEach(([userName, dates], index) => {
-      const tableRows: any[] = [];
-      const sortedDays = Object.values(dates).sort((a: any, b: any) => b.dateObj.getTime() - a.dateObj.getTime());
+    Object.entries(groupedPontos).forEach(([userName, dates]) => {
+      if (!isFirstPage) {
+        doc.addPage();
+      }
+      isFirstPage = false;
       
+      // Header
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.setTextColor(37, 99, 235); // Blue
+      doc.text('FREITAS HUB AGÊNCIA', 105, 20, { align: 'center' });
+      doc.setFontSize(16);
+      doc.setTextColor(15, 23, 42);
+      doc.text('FOLHA DE PONTO INDIVIDUAL', 105, 30, { align: 'center' });
+      
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Colaborador: ${userName}`, 14, 45);
+      
+      const sortedDays = Object.values(dates).sort((a: any, b: any) => a.dateObj.getTime() - b.dateObj.getTime());
+      
+      let startDate = '-';
+      let endDate = '-';
+      if (sortedDays.length > 0) {
+          startDate = sortedDays[0].dateStr;
+          endDate = sortedDays[sortedDays.length - 1].dateStr;
+      }
+      doc.text(`Período: ${startDate} a ${endDate}`, 14, 52);
+      doc.text(`Data de Emissão: ${dateStr}`, 14, 59);
+
+      const tableRows: any[] = [];
+      let totalWorked = 0;
+      let totalExtra = 0;
+      let totalDelay = 0;
+
       sortedDays.forEach((day: any) => {
+        if (day.workedMin !== null) totalWorked += day.workedMin || 0;
+        totalExtra += day.extraMin || 0;
+        totalDelay += day.delayMin || 0;
+
         tableRows.push([
-          day.dayOfWeek,
-          day.dateStr,
-          day['Entrada'] ? day['Entrada'].time + (day['Entrada'].justificativa ? `
-(${day['Entrada'].justificativa})` : '') : '-',
-          day['Saída Almoço'] ? day['Saída Almoço'].time + (day['Saída Almoço'].justificativa ? `
-(${day['Saída Almoço'].justificativa})` : '') : '-',
-          day['Retorno Almoço'] ? day['Retorno Almoço'].time + (day['Retorno Almoço'].justificativa ? `
-(${day['Retorno Almoço'].justificativa})` : '') : '-',
-          day['Saída'] ? day['Saída'].time + (day['Saída'].justificativa ? `
-(${day['Saída'].justificativa})` : '') : '-',
+          `${day.dateStr} (${day.dayOfWeek})`,
+          day['Entrada'] ? day['Entrada'].time : '-',
+          day['Saída Almoço'] ? day['Saída Almoço'].time : '-',
+          day['Retorno Almoço'] ? day['Retorno Almoço'].time : '-',
+          day['Saída'] ? day['Saída'].time : '-',
+          day.workedMin !== null ? minToTime(day.workedMin) : 'Incompleto',
+          day.extraMin > 0 ? minToTime(day.extraMin) : '-',
+          day.delayMin > 0 ? minToTime(day.delayMin) : '-'
         ]);
       });
 
-      additionalTables.push({
-        title: `Colaborador: ${userName}`,
-        head: [["Dia", "Data", "Entrada", "Saída Almoço", "Retorno", "Saída"]],
-        body: tableRows
+      autoTable(doc, {
+          startY: 65,
+          head: [["Data", "Entrada", "Saída Almoço", "Retorno", "Saída", "Horas Trab.", "Horas Extras", "Atrasos"]],
+          body: tableRows,
+          theme: 'grid',
+          headStyles: { fillColor: [37, 99, 235] },
+          styles: { fontSize: 8 }
       });
-    });
 
-    generateExecutiveReport({
-      title: titulo,
-      period: 'Todos os registros',
-      additionalTables,
-      filename: `folha_de_ponto_${new Date().toISOString().split('T')[0]}.pdf`
+      let currentY = (doc as any).lastAutoTable.finalY + 15;
+      
+      // Resumo do Banco de Horas
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('Resumo do Período', 14, currentY);
+      currentY += 10;
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text(`Total de Horas Trabalhadas: ${minToTime(totalWorked)}`, 14, currentY); currentY += 7;
+      doc.text(`Total de Horas Extras: ${minToTime(totalExtra)}`, 14, currentY); currentY += 7;
+      doc.text(`Total de Atrasos: ${minToTime(totalDelay)}`, 14, currentY); currentY += 7;
+      doc.text('Saldo do Banco de Horas: ---', 14, currentY); currentY += 20;
+
+      // Signatures
+      doc.line(20, currentY, 90, currentY);
+      doc.line(120, currentY, 190, currentY);
+      currentY += 5;
+      doc.text('Assinatura do Colaborador', 55, currentY, { align: 'center' });
+      doc.text('Assinatura do Responsável', 155, currentY, { align: 'center' });
     });
+    
+    if (isFirstPage) { 
+       doc.setFontSize(14);
+       doc.text('Nenhum registro encontrado no período.', 105, 50, { align: 'center' });
+    }
+
+    doc.save(`folha_de_ponto_${dateStr.replace(/\//g, '-')}.pdf`);
   };
 
   const renderCell = (pointData: any, typeColorClass: string) => {
@@ -1629,6 +1804,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
         <p className="text-slate-400 font-bold uppercase tracking-widest">{currentTime.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
       </div>
 
+      {!USER_PROFILES[currentUserProfile]?.permissions?.ponto_history_only && (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Button onClick={() => initiatePonto('Entrada')} disabled={isProcessing} className="py-6 px-4 text-sm font-black tracking-widest bg-emerald-600 hover:bg-emerald-500 text-white w-full shadow-[0_0_15px_rgba(16,185,129,0.3)]">
           {isProcessing ? 'Registrando...' : 'ENTRADA'}
@@ -1643,180 +1819,121 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
           {isProcessing ? 'Registrando...' : 'SAÍDA'}
         </Button>
       </div>
+      )}
       
       <div className="flex justify-center mt-8 gap-4">
         <Button onClick={() => setShowHistory(true)} variant="secondary" className="py-4 px-8 text-sm font-black tracking-widest bg-slate-800 hover:bg-slate-700 text-white">
           VER HISTÓRICO DE PONTO
         </Button>
+        {permissions?.canExportReport('ponto') && (
         <Button onClick={exportarFolhaPontoPDF} variant="secondary" className="py-4 px-8 text-sm font-black tracking-widest bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20">
           <Download size={16} className="mr-2" /> RELATÓRIO PDF
         </Button>
+        )}
       </div>
 
-      {/* MODAL DE EDIÇÃO DE PONTO (SOMENTE NUBIA) */}
+            {/* MODAL DE EDIÇÃO DE PONTO */}
       {editingPonto && USER_PROFILES[currentUserProfile]?.role === 'administrator' && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-sm overflow-hidden flex flex-col shadow-2xl p-6"
           >
             <div className="flex justify-between items-center mb-6">
-              <h4 className="text-xl font-bold text-white uppercase">Editar Ponto</h4>
+              <h4 className="text-xl font-bold text-white uppercase flex items-center gap-2"><Settings size={20} /> Editar Ponto</h4>
               <button onClick={() => setEditingPonto(null)} className="text-slate-400 hover:text-white">
                 <X size={20} />
               </button>
             </div>
-
             <div className="space-y-4">
-              <div>
-                <label className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1 block">Colaborador</label>
-                <div className="text-slate-200 bg-slate-800/50 p-3 rounded-lg font-mono text-sm">{USER_PROFILES[editingPonto.usuario_email]?.label || editingPonto.usuario_email}</div>
-              </div>
-              
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1 block">Tipo</label>
-                  <div className="text-slate-200 bg-slate-800/50 p-3 rounded-lg font-mono text-sm">{editingPonto.tipo}</div>
-                </div>
-                <div className="flex-1">
-                  <label className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1 block">Data</label>
-                  <div className="text-slate-200 bg-slate-800/50 p-3 rounded-lg font-mono text-sm">{new Date(editingPonto.fullDate).toLocaleDateString('pt-BR')}</div>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1 block">Horário Registrado</label>
-                <input 
-                  type="time" 
-                  value={editTime}
-                  onChange={(e) => setEditTime(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white font-mono focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none text-lg text-center"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-between mt-8 gap-4">
-              <Button onClick={deletePonto} disabled={isProcessing} className={`flex-1 font-bold tracking-widest text-xs border ${confirmDelete ? 'bg-red-600 text-white border-red-600' : 'bg-red-900/40 text-red-400 hover:bg-red-600 hover:text-white border-red-900/50'}`}>
-                {isProcessing ? '...' : (confirmDelete ? 'CONFIRMAR EXCLUSÃO' : 'EXCLUIR')}
-              </Button>
-              <Button onClick={saveEditPonto} disabled={isProcessing} className="bg-emerald-600 hover:bg-emerald-500 text-white flex-1 font-bold tracking-widest text-xs">
-                {isProcessing ? '...' : 'SALVAR'}
-              </Button>
+               <div>
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2">Horário</label>
+                  <input type="time" value={editTime} onChange={(e) => setEditTime(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:outline-none focus:border-emerald-500 font-medium" />
+               </div>
+               <div className="flex gap-2 pt-4">
+                  <Button onClick={saveEditPonto} disabled={isProcessing} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold tracking-widest text-xs py-3">
+                     SALVAR
+                  </Button>
+                  <Button onClick={deletePonto} disabled={isProcessing} className={`flex-1 font-bold tracking-widest text-xs py-3 ${confirmDelete ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-slate-800 hover:bg-slate-700 text-red-400'}`}>
+                     {confirmDelete ? 'CONFIRMAR EXCLUSÃO' : 'EXCLUIR'}
+                  </Button>
+               </div>
             </div>
           </motion.div>
         </div>
       )}
 
+      {/* MODAL DE HISTÓRICO DE PONTO */}
       {showHistory && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
+            className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
           >
-            <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-900/50">
-              <h3 className="text-xl font-bold text-white uppercase tracking-wider">{USER_PROFILES[currentUserProfile]?.role === 'administrator' ? 'Todos os Registros' : 'Meus Registros'}</h3>
-              <div className="flex items-center gap-4">
-                {canExportReports && (
-                  <>
-                    <Button onClick={zerarHistorico} variant="secondary" className="h-8 px-4 text-xs bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20" disabled={isProcessing}>
-                      <Trash2 size={14} className="mr-2" /> ZERAR HISTÓRICO
-                    </Button>
-                    <Button onClick={exportarFolhaPontoPDF} variant="secondary" className="h-8 px-4 text-xs bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20" disabled={isProcessing}>
-                      <Download size={14} className="mr-2" /> EXPORTAR PDF
-                    </Button>
-                  </>
-                )}
-                <button onClick={() => setShowHistory(false)} className="text-slate-500 hover:text-white transition-colors">
-                  <X size={24} />
-                </button>
-              </div>
-            </div>
-            
-            <div className="p-6 overflow-y-auto flex-1">
-              {Object.keys(groupedPontos).length === 0 ? (
-                <div className="py-8 text-center text-slate-500 italic">Nenhum registro encontrado</div>
-              ) : (
-                Object.entries(groupedPontos).map(([userName, dates]) => (
-                  <div key={userName} className="mb-8 bg-slate-800/20 rounded-xl border border-slate-800 overflow-hidden">
-                    <div className="bg-slate-800/50 p-4 border-b border-slate-700 flex justify-between items-center">
-                      <h4 className="text-lg font-bold text-white uppercase tracking-wider">{userName}</h4>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse">
-                        <thead className="bg-slate-900/50 text-xs text-slate-400 uppercase tracking-wider font-bold">
-                          <tr>
-                            <th className="px-4 py-3">Dia</th>
-                            <th className="px-4 py-3">Data</th>
-                            <th className="px-4 py-3 text-center text-emerald-400">Entrada</th>
-                            <th className="px-4 py-3 text-center text-amber-400">Saída Almoço</th>
-                            <th className="px-4 py-3 text-center text-blue-400">Retorno Almoço</th>
-                            <th className="px-4 py-3 text-center text-red-400">Saída</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800/50">
-                          {Object.values(dates).sort((a: any, b: any) => b.dateObj.getTime() - a.dateObj.getTime()).map((day: any) => (
-                            <tr key={day.dateStr} className="hover:bg-slate-800/30 transition-colors group">
-                              <td className="px-4 py-3 text-slate-300 font-medium capitalize">{day.dayOfWeek}</td>
-                              <td className="px-4 py-3 text-slate-300 font-mono text-sm">{day.dateStr}</td>
-                              <td className="px-4 py-3 text-center font-mono font-bold">
-                                {renderCell(day['Entrada'], 'text-emerald-300')}
-                              </td>
-                              <td className="px-4 py-3 text-center font-mono font-bold">
-                                {renderCell(day['Saída Almoço'], 'text-amber-300')}
-                              </td>
-                              <td className="px-4 py-3 text-center font-mono font-bold">
-                                {renderCell(day['Retorno Almoço'], 'text-blue-300')}
-                              </td>
-                              <td className="px-4 py-3 text-center font-mono font-bold">
-                                {renderCell(day['Saída'], 'text-red-300')}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* MODAL DE JUSTIFICATIVA */}
-      {pendingPonto && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-sm overflow-hidden flex flex-col shadow-2xl p-6"
-          >
-            <div className="flex justify-between items-center mb-6">
-              <h4 className="text-xl font-bold text-red-400 uppercase flex items-center gap-2"><AlertCircle size={20} /> Atraso / Antecipação</h4>
-              <button onClick={() => setPendingPonto(null)} className="text-slate-400 hover:text-white">
+            <div className="flex justify-between items-center p-6 border-b border-slate-800">
+              <h4 className="text-xl font-bold text-white uppercase flex items-center gap-2"><Clock size={20} /> Histórico de Ponto</h4>
+              <button onClick={() => setShowHistory(false)} className="text-slate-400 hover:text-white">
                 <X size={20} />
               </button>
             </div>
-            
-            <p className="text-sm text-slate-300 mb-4">Você está registrando <strong className="text-white">{pendingPonto}</strong> fora do horário ou da tolerância configurada.</p>
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-2 block">Por que você está registrando este horário?</label>
-                <textarea 
-                  value={justificativa}
-                  onChange={(e) => setJustificativa(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none text-sm h-24 resize-none"
-                  placeholder="Escreva sua justificativa aqui..."
-                />
-              </div>
-            </div>
-
-            <div className="mt-8">
-              <Button onClick={confirmPontoWithJustificativa} className="bg-emerald-600 hover:bg-emerald-500 text-white w-full font-bold tracking-widest text-xs py-4">
-                CONFIRMAR REGISTRO
-              </Button>
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {Object.entries(groupedPontos).map(([userName, dates]: any) => (
+                <div key={userName} className="bg-slate-950 p-6 rounded-2xl border border-slate-800/60">
+                   <h5 className="text-lg font-black text-white uppercase tracking-wider mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">{userName}</h5>
+                   <div className="overflow-x-auto">
+                     <table className="w-full text-left text-sm text-slate-400">
+                       <thead className="text-[10px] uppercase bg-slate-900 text-slate-500">
+                         <tr>
+                           <th className="px-4 py-3 font-black tracking-widest rounded-tl-lg">Data</th>
+                           <th className="px-4 py-3 font-black tracking-widest">Entrada</th>
+                           <th className="px-4 py-3 font-black tracking-widest">Saída Almoço</th>
+                           <th className="px-4 py-3 font-black tracking-widest">Retorno Almoço</th>
+                           <th className="px-4 py-3 font-black tracking-widest">Saída</th>
+                           <th className="px-4 py-3 font-black tracking-widest">Horas Trab.</th>
+                           <th className="px-4 py-3 font-black tracking-widest">Extras</th>
+                           <th className="px-4 py-3 font-black tracking-widest rounded-tr-lg">Atrasos</th>
+                         </tr>
+                       </thead>
+                       <tbody>
+                         {Object.values(dates).sort((a: any, b: any) => b.dateObj.getTime() - a.dateObj.getTime()).map((day: any) => (
+                           <tr key={day.dateStr} className="border-b border-slate-800/50 hover:bg-slate-900/50 transition-colors">
+                             <td className="px-4 py-4 whitespace-nowrap">
+                               <div className="font-bold text-slate-300">{day.dateStr}</div>
+                               <div className="text-[10px] uppercase tracking-widest text-slate-500">{day.dayOfWeek}</div>
+                             </td>
+                             <td className="px-4 py-4">{renderCell(day['Entrada'], 'text-emerald-400')}</td>
+                             <td className="px-4 py-4">{renderCell(day['Saída Almoço'], 'text-amber-400')}</td>
+                             <td className="px-4 py-4">{renderCell(day['Retorno Almoço'], 'text-blue-400')}</td>
+                             <td className="px-4 py-4">{renderCell(day['Saída'], 'text-red-400')}</td>
+                             <td className="px-4 py-4 font-mono font-bold text-slate-300">
+                                {day.workedMin !== null ? minToTime(day.workedMin) : <span className="text-slate-600 text-[10px]">Incompleto</span>}
+                             </td>
+                             <td className="px-4 py-4 font-mono font-bold text-emerald-400">
+                                {day.extraMin > 0 ? minToTime(day.extraMin) : '-'}
+                             </td>
+                             <td className="px-4 py-4 font-mono font-bold text-red-400">
+                                {day.delayMin > 0 ? minToTime(day.delayMin) : '-'}
+                             </td>
+                           </tr>
+                         ))}
+                       </tbody>
+                     </table>
+                   </div>
+                   <div className="mt-4 flex gap-4 text-xs font-bold uppercase tracking-widest border-t border-slate-800 pt-4">
+                      <div className="text-slate-400">Total Trab: <span className="text-white">{minToTime(Object.values(dates).reduce((acc: number, curr: any) => acc + (curr.workedMin || 0), 0))}</span></div>
+                      <div className="text-emerald-400">Total Extras: <span className="text-white">{minToTime(Object.values(dates).reduce((acc: number, curr: any) => acc + (curr.extraMin || 0), 0))}</span></div>
+                      <div className="text-red-400">Total Atrasos: <span className="text-white">{minToTime(Object.values(dates).reduce((acc: number, curr: any) => acc + (curr.delayMin || 0), 0))}</span></div>
+                   </div>
+                </div>
+              ))}
+              {Object.keys(groupedPontos).length === 0 && (
+                <div className="text-center py-12 text-slate-500">
+                   <Clock size={48} className="mx-auto mb-4 opacity-20" />
+                   <p className="font-bold uppercase tracking-widest text-sm">Nenhum registro encontrado</p>
+                </div>
+              )}
             </div>
           </motion.div>
         </div>
@@ -1836,7 +1953,20 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
                 <X size={20} />
               </button>
             </div>
-
+            
+            <div className="mb-6 bg-slate-800/60 p-4 rounded-xl border border-slate-700/50">
+               <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2">Configurar Para</label>
+               <select 
+                 value={settingsUserFilter} 
+                 onChange={(e) => setSettingsUserFilter(e.target.value)}
+                 className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:outline-none focus:border-emerald-500 font-medium"
+               >
+                 <option value="all">Padrão da Empresa (Todos)</option>
+                 {RESPONSAVEIS.map((r: any) => (
+                    <option key={r.value} value={r.value}>{r.label}</option>
+                 ))}
+               </select>
+            </div>
             <div className="space-y-6">
               {/* ENTRADA */}
               <div className="bg-slate-800/40 p-4 rounded-xl border border-slate-700/50">
@@ -1944,6 +2074,7 @@ export default function App() {
   const [reportDateStart, setReportDateStart] = useState('');
   const [reportDateEnd, setReportDateEnd] = useState('');
   const [reportType, setReportType] = useState<string>('');
+  const [reportModalUser, setReportModalUser] = useState('all');
   const [user, setUser] = useState<any>(null);
   const [isSystemAdmin, setIsSystemAdmin] = useState(false);
   const [currentUserProfile, setCurrentUserProfile] = useState('');
@@ -2015,33 +2146,31 @@ export default function App() {
   const permissions = useMemo(() => {
     const p = currentPermissions;
     const canView = (tab: string) => {
-      if (tab === 'clients' || tab === 'tasks' || tab === 'ponto') return true;
-      if (tab === 'financial_control') return p.financial !== 'none';
-      if (tab === 'agenda') return p.agenda !== 'none';
-      if (tab === 'servicos') return p.services !== 'none';
-      if (tab === 'reports') return p.financial !== 'none' && p.reports !== 'none';
-      return false;
+      if (!p || !p.allowed_tabs) return false;
+      return p.allowed_tabs.includes(tab);
     };
     const canEdit = (tab: string) => {
+      if (!p) return false;
       if (tab === 'financial_control' || tab === 'transactions') return p.financial === 'full';
-      if (p.full_access) return true;
-      if (tab === 'clients' || tab === 'tasks' || tab === 'ponto') return true; // Clientes e tarefas todos podem editar por padrão
-      if (tab === 'agenda' || tab === 'appointments') return p.agenda === 'full';
-      if (tab === 'servicos') return p.services === 'full';
+      if (tab === 'agenda' || tab === 'appointments') return p.allowed_tabs?.includes('agenda');
+      if (tab === 'servicos') return p.allowed_tabs?.includes('servicos');
+      if (tab === 'clients' || tab === 'tasks' || tab === 'ponto') return p.allowed_tabs?.includes(tab);
       return false;
     };
     const canDelete = (tab?: string) => {
-      if (p.can_delete === false) return false;
+      if (!p || p.can_delete === false) return false;
       if (tab === 'financial_control' || tab === 'transactions') return p.financial === 'full';
-      if (p.full_access) return true;
-      if (!tab) return false;
-      if (tab === 'clients' || tab === 'tasks' || tab === 'ponto') return true;
-      if (tab === 'agenda' || tab === 'appointments') return p.agenda === 'full';
-      if (tab === 'servicos') return p.services === 'full';
+      if (tab === 'agenda' || tab === 'appointments') return p.allowed_tabs?.includes('agenda');
+      if (tab === 'servicos') return p.allowed_tabs?.includes('servicos');
+      if (tab === 'clients' || tab === 'tasks' || tab === 'ponto') return p.allowed_tabs?.includes(tab);
       return false;
     };
-    
-    return { canView, canEdit, canDelete };
+    const canExportReport = (reportType: string) => {
+      if (p?.reports === 'full') return true;
+      if (reportType === 'tasks' && p?.allowed_tabs?.includes('tasks')) return true;
+      return false;
+    };
+    return { canView, canEdit, canDelete, canExportReport };
   }, [currentPermissions]);
 
   // Bloqueio de abas protegidas com base em permissões granulares
@@ -2201,28 +2330,6 @@ export default function App() {
               return { ...item, localizacao: item.titulo, titulo_evento: item.titulo };
             });
             setter(parsedData);
-          } else if (name === 'clients' && data) {
-            const parsedData = data.map((item: any) => {
-              if (item.email && item.email.startsWith('{')) {
-                try {
-                  const parsed = JSON.parse(item.email);
-                  return { ...item, email: parsed.email, servico: parsed.servico, valor: parsed.valor, rede_social: parsed.rede_social, status: parsed.status || 'active', cnpj: parsed.cnpj, email_secundario: parsed.email_secundario, telefone_secundario: parsed.telefone_secundario, _raw_email: item.email };
-                } catch(e) {}
-              }
-              return { ...item, status: 'active' };
-            });
-            setter(parsedData);
-          } else if (name === 'transactions' && data) {
-            const parsedData = data.map((item: any) => {
-              if (item.descricao && item.descricao.startsWith('{')) {
-                try {
-                  const parsed = JSON.parse(item.descricao);
-                  return { ...item, categoria: parsed.categoria, descricao: parsed.descricao, forma_pagamento: parsed.forma_pagamento, _raw_descricao: item.descricao };
-                } catch(e) {}
-              }
-              return item;
-            });
-            setter(parsedData);
           } else if (name === 'tasks' && data) {
             const today = new Date();
             today.setHours(0,0,0,0);
@@ -2281,7 +2388,20 @@ export default function App() {
 
             setter(data.filter((t: any) => t.status !== 'daily_report'));
           } else {
-            setter(data || []);
+            if (name === 'clients' && data) {
+              const parsedClients = data.map((c: any) => {
+                 try {
+                    if (c.email && c.email.startsWith('{')) {
+                       const parsed = JSON.parse(c.email);
+                       return { ...c, ...parsed, _raw_email: c.email };
+                    }
+                 } catch(e) {}
+                 return c;
+              });
+              setter(parsedClients);
+            } else {
+              setter(data || []);
+            }
           }
           if (connectionError && !collectionName) setConnectionError(null);
         }
@@ -2305,7 +2425,7 @@ export default function App() {
 
 
 
-    const executeReport = (type: string, start: string, end: string) => {
+    const executeReport = (type: string, start: string, end: string, userFilter: string = 'all') => {
     let periodStr = 'Geral';
     if (start && end) {
       periodStr = `${start.split('-').reverse().join('/')} até ${end.split('-').reverse().join('/')}`;
@@ -2357,54 +2477,52 @@ export default function App() {
       if (start) filtered = filtered.filter((c:any) => (c.created_at || '').substring(0,10) >= start);
       if (end) filtered = filtered.filter((c:any) => (c.created_at || '').substring(0,10) <= end);
 
-      const activeClientsCount = filtered.filter((c: any) => c.status === 'active').length;
+      const activeClientsCount = filtered.filter((c: any) => c.status === 'Cliente Ativo').length;
+      const leadsCount = filtered.filter((c: any) => ['Novo Lead', 'Primeiro Contato', 'Qualificado'].includes(c.status || 'Novo Lead')).length;
+      const negotiatingCount = filtered.filter((c: any) => ['Proposta Enviada', 'Negociação', 'Aguardando Retorno'].includes(c.status)).length;
+      const closedSales = filtered.filter((c: any) => c.status === 'Venda Concluída').length;
+      const lostLeads = filtered.filter((c: any) => c.status === 'Lead Perdido').length;
+
       const kpis = [
-        { label: 'Clientes Ativos', value: activeClientsCount, color: [34, 197, 94] },
-        { label: 'Cancelamentos', value: filtered.filter((c: any) => c.status === 'inactive').length, color: [239, 68, 68] }
+        { label: 'Total de Leads', value: leadsCount, color: [99, 102, 241] },
+        { label: 'Em Neg.', value: negotiatingCount, color: [245, 158, 11] },
+        { label: 'Vendas', value: closedSales, color: [34, 197, 94] },
+        { label: 'Ativos', value: activeClientsCount, color: [16, 185, 129] },
+        { label: 'Perdidos', value: lostLeads, color: [239, 68, 68] }
       ];
       
-      const isRestricted = currentUserProfile === 'gabriel360@gmail.com' || currentUserProfile === 'cassio360@gmail.com';
+      const head = [['Nome/Empresa', 'Contato', 'Email', 'Origem', 'Status', 'Prioridade', 'Responsável']];
       
-      let head = [['Nome', 'Serviço', 'Tarifa', 'Telefone', 'Email', 'Rede Social', 'Status']];
-      if (isRestricted) head = [['Nome', 'Telefone', 'Email', 'Rede Social', 'Status']];
-
       const tableData = filtered.map((c: any) => {
-        if (isRestricted) {
-           return [
-             c.nome || '-',
-             c.telefone || '-',
-             c.email || '-',
-             c.rede_social || '-',
-             c.status === 'active' ? 'Ativo' : 'Inativo'
-           ];
-        }
         return [
-          c.nome || '-',
-          c.servico || '-',
-          `R$ ${Number(c.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`,
-          c.telefone || '-',
+          `${c.nome || '-'}\n${c.empresa || ''}`.trim(),
+          c.telefone || c.whatsapp || '-',
           c.email || '-',
-          c.rede_social || '-',
-          c.status === 'active' ? 'Ativo' : 'Inativo'
+          c.origem || '-',
+          c.status || 'Novo Lead',
+          c.prioridade || 'Média',
+          c.responsavel_atendimento || c.responsavel || '-'
         ];
       });
 
       generateExecutiveReport({
-        title: 'Relatório de Clientes',
+        title: 'Relatório Executivo CRM',
         period: periodStr,
         cards: kpis as any,
         mainTable: {
-          title: 'Carteira de Clientes',
+          title: 'Cadastro CRM',
           head: head,
           body: tableData,
           didParseCell: function(data: any) {
-              const statusCol = isRestricted ? 4 : 6;
-              if (data.section === 'body' && data.column.index === statusCol) {
-                  data.cell.styles.textColor = data.cell.raw === 'Ativo' ? [34, 197, 94] : [239, 68, 68];
+              if (data.section === 'body' && data.column.index === 4) {
+                  const status = data.cell.raw;
+                  if (status === 'Cliente Ativo' || status === 'Venda Concluída') data.cell.styles.textColor = [34, 197, 94];
+                  else if (status === 'Lead Perdido') data.cell.styles.textColor = [239, 68, 68];
+                  else data.cell.styles.textColor = [99, 102, 241];
               }
           }
         },
-        filename: `clientes_${new Date().toISOString().split('T')[0]}.pdf`
+        filename: `relatorio_crm_${new Date().toISOString().split('T')[0]}.pdf`
       });
     } else if (type === 'finance') {
       let filtered = transactions;
@@ -2457,6 +2575,9 @@ export default function App() {
       let fTasks = tasks;
       if (start) fTasks = fTasks.filter((t:any) => t.data >= start);
       if (end) fTasks = fTasks.filter((t:any) => t.data <= end);
+      if (userFilter && userFilter !== 'all') {
+        fTasks = fTasks.filter((t:any) => t.atribuido_a === userFilter);
+      }
       
       fTasks.forEach((t: any) => {
         const userLabel = t.atribuido_a || 'Sem responsável';
@@ -2490,7 +2611,10 @@ export default function App() {
       const additionalTables: any[] = [];
       if (typeof dailyReports !== 'undefined' && dailyReports.length > 0) {
 
-          const users = Array.from(new Set(dailyReports.map((r: any) => r.responsavel)));
+          let users = Array.from(new Set(dailyReports.map((r: any) => r.responsavel)));
+          if (userFilter && userFilter !== 'all') {
+            users = users.filter(u => u === userFilter);
+          }
           users.forEach(userId => {
                const userReps = dailyReports.filter((r: any) => r.responsavel === userId);
                userReps.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -2526,6 +2650,9 @@ export default function App() {
       let fTasks = tasks;
       if (start) fTasks = fTasks.filter((t:any) => t.data >= start);
       if (end) fTasks = fTasks.filter((t:any) => t.data <= end);
+      if (userFilter && userFilter !== 'all') {
+        fTasks = fTasks.filter((t:any) => t.atribuido_a === userFilter);
+      }
       
       const done = fTasks.filter((t:any) => t.status === 'done').length;
       const pending = fTasks.filter((t:any) => t.status === 'pending').length;
@@ -2741,7 +2868,6 @@ export default function App() {
       }[activeTab];
 
       if (!collectionName) return;
-      
       const payload: any = { 
         ...formData, 
         updated_at: new Date().toISOString(),
@@ -2752,6 +2878,7 @@ export default function App() {
       
       delete payload._raw_email;
       delete payload.id;
+      delete payload.is_diaria;
 
       // Garantir tipos numéricos para valores financeiros
       if (payload.valor) {
@@ -2765,10 +2892,20 @@ export default function App() {
           servico: payload.servico || '',
           valor: payload.valor || '',
           rede_social: payload.rede_social || '',
-          status: payload.status || 'active',
+          status: payload.status || 'Novo Lead',
           cnpj: payload.cnpj || '',
           email_secundario: payload.email_secundario || '',
-          telefone_secundario: payload.telefone_secundario || ''
+          telefone_secundario: payload.telefone_secundario || '',
+          empresa: payload.empresa || '',
+          whatsapp: payload.whatsapp || '',
+          endereco: payload.endereco || '',
+          cidade: payload.cidade || '',
+          estado: payload.estado || '',
+          origem: payload.origem || '',
+          responsavel_atendimento: payload.responsavel_atendimento || payload.responsavel || '',
+          prioridade: payload.prioridade || 'Média',
+          anotacoes: payload.anotacoes || '',
+          timeline: payload.timeline || []
         };
         payload.email = JSON.stringify(parsedEmail);
         delete payload.servico;
@@ -2778,6 +2915,16 @@ export default function App() {
         delete payload.cnpj;
         delete payload.email_secundario;
         delete payload.telefone_secundario;
+        delete payload.empresa;
+        delete payload.whatsapp;
+        delete payload.endereco;
+        delete payload.cidade;
+        delete payload.estado;
+        delete payload.origem;
+        delete payload.responsavel_atendimento;
+        delete payload.prioridade;
+        delete payload.anotacoes;
+        delete payload.timeline;
       }
 
       // Limpeza e mapeamento específico para Transações
@@ -2825,7 +2972,7 @@ export default function App() {
       }
 
       if (payload.data === '') payload.data = null;
-      if (collectionName === 'tasks' && payload.is_recurring !== false) {
+      if (collectionName === 'tasks' && payload.is_recurring) {
         payload.data = null;
       }
       if (!editingId) payload.created_at = new Date().toISOString();
@@ -3251,7 +3398,7 @@ export default function App() {
                     setFormData={setFormData}
                     setEditingId={setEditingId}
                     setIsModalOpen={(open: boolean) => { setIsModalOpen(open); if(open) setIsHistoryModalOpen(false); }}
-                    extraAction={{ label: 'Relatório PDF', icon: <Download size={14} />, onClick: () => { setReportType('agenda'); setIsReportModalOpen(true); } }}
+                    extraAction={permissions?.canExportReport('agenda') ? { label: 'Relatório PDF', icon: <Download size={14} />, onClick: () => { setReportType('agenda'); setIsReportModalOpen(true); } } : undefined}
                     setItemToDelete={setItemToDelete}
                     isSystemAdmin={isSystemAdmin}
                     fetchCollections={fetchCollections}
@@ -3304,42 +3451,56 @@ export default function App() {
 
               {activeTab === 'tasks' && (
                 <div className="space-y-6 max-w-4xl mx-auto pt-6">
+                  {/* Resumo de Produtividade Diária */}
+                  {(() => {
+                    const filteredTasks = tasks.filter((t: any) => taskFilterPerson === 'all' || t.atribuido_a === taskFilterPerson);
+                    const total = filteredTasks.length;
+                    const done = filteredTasks.filter((t: any) => t.status === 'done').length;
+                    const pending = filteredTasks.filter((t: any) => t.status === 'pending').length;
+                    const inProgress = filteredTasks.filter((t: any) => t.status === 'in_progress').length;
+                    const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+                    
+                    return (
+                      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 grid grid-cols-2 md:grid-cols-5 gap-4">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Total</span>
+                          <span className="text-2xl font-black text-white">{total}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Concluídas</span>
+                          <span className="text-2xl font-black text-emerald-400">{done}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-red-500 font-bold uppercase tracking-widest">Pendentes</span>
+                          <span className="text-2xl font-black text-red-400">{pending}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-amber-500 font-bold uppercase tracking-widest">Em Andamento</span>
+                          <span className="text-2xl font-black text-amber-400">{inProgress}</span>
+                        </div>
+                        <div className="flex flex-col col-span-2 md:col-span-1 justify-center">
+                          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Progresso</span>
+                          <div className="flex items-center gap-3">
+                            <div className="flex-1 h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                              <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${percent}%` }} />
+                            </div>
+                            <span className="text-sm font-bold text-white">{percent}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* Header e Filtros por Pessoa */}
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <h2 className="text-3xl font-black text-white uppercase tracking-tighter">Checklist</h2>
                     
                     <div className="flex flex-wrap items-center gap-3">
-                      <div className="flex flex-wrap items-center gap-2 bg-slate-900 p-1 rounded-xl border border-slate-800">
-                         {USER_PROFILES[currentUserProfile]?.role === 'administrator' && (
-                           <select 
-                              value={reportFilterUser}
-                              onChange={(e) => setReportFilterUser(e.target.value)}
-                             className="bg-transparent text-slate-300 text-xs font-bold rounded-lg px-2 py-1 outline-none"
-                             style={{ colorScheme: 'dark' }}
-                           >
-                             <option value="all" className="bg-slate-950">Todos os Usuários</option>
-                             {RESPONSAVEIS.map((r: any) => (
-                               <option key={r.value} value={r.value} className="bg-slate-950">{r.label}</option>
-                             ))}
-                           </select>
-                         )}
-                         <input 
-                            type="date" 
-                            value={reportFilterDateStart}
-                          onChange={(e) => setReportFilterDateStart(e.target.value)}
-                          className="bg-transparent text-slate-300 text-xs font-bold rounded-lg px-2 py-1 outline-none"
-                          style={{ colorScheme: 'dark' }}
-                        />
-                        <span className="text-slate-500 text-xs font-bold">até</span>
-                        <input 
-                            type="date" 
-                            value={reportFilterDateEnd}
-                          onChange={(e) => setReportFilterDateEnd(e.target.value)}
-                          className="bg-transparent text-slate-300 text-xs font-bold rounded-lg px-2 py-1 outline-none"
-                          style={{ colorScheme: 'dark' }}
-                        />
-                         <button onClick={() => { setReportType('tasks'); setIsReportModalOpen(true); }} className="flex items-center gap-2 px-3 py-2 bg-slate-950 text-emerald-500 rounded-lg font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all border border-slate-800"><Download size={14} /> Relatório PDF</button>
-                      </div>
+                        {permissions?.canExportReport('tasks') && (
+                        <button onClick={() => { setReportType('tasks'); setIsReportModalOpen(true); }} className="inline-flex items-center justify-center rounded-xl font-bold transition-all duration-300 bg-slate-800 text-white hover:bg-slate-700 border border-slate-700 hover:border-slate-600 flex-1 sm:flex-none px-4 py-2.5 text-[11px] uppercase tracking-widest gap-2">
+                          <Download size={14} /> PDF
+                        </button>
+                        )}
                       <button 
                         onClick={() => { setEditingId(null); setFormData({ status: 'pending', prioridade: 'medium', data: new Date().toISOString().split('T')[0], atribuido_a: taskFilterPerson === 'all' ? currentUserProfile : taskFilterPerson }); setIsModalOpen(true); }}
                         className="flex items-center gap-2 px-6 py-3 bg-emerald-500 text-slate-950 rounded-xl font-black text-sm uppercase tracking-widest hover:bg-emerald-400 hover:shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all active:scale-95"
@@ -3607,41 +3768,26 @@ export default function App() {
                       />
                     )}
 
-              {(activeTab === 'clients' || activeTab === 'servicos') && (
-                <ListView 
-                   title={(currentUserProfile === 'gabriel360@gmail.com' || currentUserProfile === 'cassio360@gmail.com') ? "Registro de Clientes" : "Registro de Clientes e Serviços"} 
-                   data={clients} 
-                   collName="clients" 
-                   onAdd={() => { setEditingId(null); setFormData({}); setIsModalOpen(true); }} 
-                   permissions={permissions}
-                  setFormData={setFormData}
+              {activeTab === 'clients' && (
+                <CRMView 
+                  setActiveTab={setActiveTab}
+                  setReportType={setReportType}
+                  setIsReportModalOpen={setIsReportModalOpen}
+                  clients={clients}
+                  currentUserProfile={currentUserProfile}
+                  user={user}
+                  supabase={supabase}
+                  permissions={permissions}
                   setEditingId={setEditingId}
-                  setIsModalOpen={(open: boolean) => { setIsModalOpen(open); if(open) setIsHistoryModalOpen(false); }}
+                  setFormData={setFormData}
+                  setIsModalOpen={setIsModalOpen}
                   setItemToDelete={setItemToDelete}
-                  isSystemAdmin={isSystemAdmin}
                   fetchCollections={fetchCollections}
-                  extraAction={{ label: 'Relatório PDF', icon: <Download size={14} />, onClick: () => { setReportType('clients'); setIsReportModalOpen(true); } }}
-                  columns={(currentUserProfile === 'gabriel360@gmail.com' || currentUserProfile === 'cassio360@gmail.com') 
-                    ? [
-                        {key:'nome', label:'Nome do Cliente', render: (val: any) => <span className="font-black text-white uppercase tracking-tight">{val}</span>}, 
-                        {key:'telefone', label:'Telefone', render: (val: any) => <span className="font-mono text-slate-500">{val || '--'}</span>},
-                        {key:'email', label:'Email', render: (val: any) => <span className="text-slate-500 italic text-[10px] line-clamp-1 max-w-[150px]">{val || '--'}</span>},
-                        {key:'rede_social', label:'Rede Social', render: (val: any) => <span className="text-emerald-400 font-bold text-[10px] line-clamp-1 max-w-[150px]">{val || '--'}</span>},
-                        {key:'status', label:'Status', render: (val: any) => <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${val === 'inactive' ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}`}>{val === 'inactive' ? 'Inativo' : 'Ativo'}</span>}
-                      ]
-                    : [
-                        {key:'nome', label:'Nome do Cliente', render: (val: any) => <span className="font-black text-white uppercase tracking-tight">{val}</span>}, 
-                        {key:'servico', label:'Anotações / Serviços', render: (val: any) => <span className="text-emerald-400 font-bold text-[10px] line-clamp-1 max-w-[200px]">{val || '--'}</span>},
-                        {key:'valor', label:'Tarifa', render: (val: any) => <span className="font-mono text-emerald-500">R$ {Number(val || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>},
-                        {key:'telefone', label:'Telefone', render: (val: any) => <span className="font-mono text-slate-500">{val || '--'}</span>},
-                        {key:'email', label:'Email', render: (val: any) => <span className="text-slate-500 italic text-[10px] line-clamp-1 max-w-[150px]">{val || '--'}</span>},
-                        {key:'rede_social', label:'Rede Social', render: (val: any) => <span className="text-slate-400 font-bold text-[10px] line-clamp-1 max-w-[150px]">{val || '--'}</span>},
-                        {key:'status', label:'Status', render: (val: any) => <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${val === 'inactive' ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}`}>{val === 'inactive' ? 'Inativo' : 'Ativo'}</span>}
-                      ]}
+                  isSystemAdmin={isSystemAdmin}
                 />
               )}
               {activeTab === 'ponto' && (
-                <PontoView currentUserProfile={currentUserProfile} pontos={pontos} setPontos={setPontos} isSystemAdmin={isSystemAdmin} USER_PROFILES={USER_PROFILES} supabase={supabase} />
+                <PontoView currentUserProfile={currentUserProfile} pontos={pontos} setPontos={setPontos} isSystemAdmin={isSystemAdmin} USER_PROFILES={USER_PROFILES} supabase={supabase} permissions={permissions} />
               )}
             </motion.div>
           </AnimatePresence>
@@ -3670,7 +3816,7 @@ export default function App() {
                     setFormData={setFormData}
                     setEditingId={setEditingId}
                     setIsModalOpen={(open: boolean) => { setIsModalOpen(open); if(open) setIsHistoryModalOpen(false); }}
-                    extraAction={{ label: 'Relatório PDF', icon: <Download size={14} />, onClick: () => { setReportType('finance'); setIsReportModalOpen(true); } }}
+                    extraAction={permissions?.canExportReport('finance') ? { label: 'Relatório PDF', icon: <Download size={14} />, onClick: () => { setReportType('finance'); setIsReportModalOpen(true); } } : undefined}
                     setItemToDelete={setItemToDelete}
                     isSystemAdmin={isSystemAdmin}
                     fetchCollections={fetchCollections}
@@ -3782,42 +3928,63 @@ export default function App() {
                   </div>
                   
                   <div className="space-y-4">
-                    {(activeTab === 'clients' || activeTab === 'servicos') && (
+                    {activeTab === 'clients' && (
                       <>
-                        <div className="space-y-2">
-                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nome do Cliente</label>
-                          <input type="text" value={formData.nome || ''} onChange={(e) => setFormData({...formData, nome: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Telefone</label>
-                          <input type="text" value={formData.telefone || ''} onChange={(e) => setFormData({...formData, telefone: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Email</label>
-                          <input type="email" value={formData.email || ''} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Rede Social</label>
-                          <input type="text" value={formData.rede_social || ''} onChange={(e) => setFormData({...formData, rede_social: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
-                        </div>
-                        {activeTab === 'servicos' && (
-                          <>
-                            <div className="space-y-2">
-                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Serviços</label>
-                              <input type="text" value={formData.servico || ''} onChange={(e) => setFormData({...formData, servico: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Tarifa (R$)</label>
-                              <input type="number" value={formData.valor || ''} onChange={(e) => setFormData({...formData, valor: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
-                            </div>
-                          </>
-                        )}
-                        <div className="space-y-2">
-                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Status</label>
-                          <select value={formData.status || 'active'} onChange={(e) => setFormData({...formData, status: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50">
-                            <option value="active">Ativo</option>
-                            <option value="inactive">Inativo</option>
-                          </select>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           <div className="space-y-2">
+                             <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nome Completo</label>
+                             <input type="text" value={formData.nome || ''} onChange={(e) => setFormData({...formData, nome: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                           </div>
+                           <div className="space-y-2">
+                             <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Empresa</label>
+                             <input type="text" value={formData.empresa || ''} onChange={(e) => setFormData({...formData, empresa: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                           </div>
+                           <div className="space-y-2">
+                             <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">CPF/CNPJ</label>
+                             <input type="text" value={formData.cnpj || ''} onChange={(e) => setFormData({...formData, cnpj: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                           </div>
+                           <div className="space-y-2">
+                             <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Telefone / WhatsApp</label>
+                             <input type="text" value={formData.telefone || ''} onChange={(e) => setFormData({...formData, telefone: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                           </div>
+                           <div className="space-y-2">
+                             <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Email</label>
+                             <input type="email" value={formData.email || ''} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                           </div>
+                           <div className="space-y-2">
+                             <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Origem do Lead</label>
+                             <input type="text" value={formData.origem || ''} onChange={(e) => setFormData({...formData, origem: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                           </div>
+                           <div className="space-y-2 md:col-span-2">
+                             <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Endereço Completo (com Cidade e Estado)</label>
+                             <input type="text" value={formData.endereco || ''} onChange={(e) => setFormData({...formData, endereco: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                           </div>
+                           <div className="space-y-2">
+                             <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Status (Funil)</label>
+                             <select value={formData.status || 'Novo Lead'} onChange={(e) => setFormData({...formData, status: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50">
+                               <option value="Novo Lead">Novo Lead</option>
+                               <option value="Primeiro Contato">Primeiro Contato</option>
+                               <option value="Qualificado">Qualificado</option>
+                               <option value="Proposta Enviada">Proposta Enviada</option>
+                               <option value="Negociação">Negociação</option>
+                               <option value="Aguardando Retorno">Aguardando Retorno</option>
+                               <option value="Cliente Ativo">Cliente Ativo</option>
+                               <option value="Venda Concluída">Venda Concluída</option>
+                               <option value="Lead Perdido">Lead Perdido</option>
+                             </select>
+                           </div>
+                           <div className="space-y-2">
+                             <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Prioridade</label>
+                             <select value={formData.prioridade || 'Média'} onChange={(e) => setFormData({...formData, prioridade: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50">
+                               <option value="Alta">Alta</option>
+                               <option value="Média">Média</option>
+                               <option value="Baixa">Baixa</option>
+                             </select>
+                           </div>
+                           <div className="space-y-2 md:col-span-2">
+                             <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Anotações / Histórico Inicial</label>
+                             <textarea value={formData.anotacoes || ''} onChange={(e) => setFormData({...formData, anotacoes: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50 h-24 resize-none" />
+                           </div>
                         </div>
                       </>
                     )}
@@ -3853,6 +4020,10 @@ export default function App() {
                               <option key={r.value} value={r.value}>{r.label}</option>
                             ))}
                           </select>
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <input type="checkbox" id="task_diaria" checked={formData.is_recurring || false} onChange={(e) => setFormData({...formData, is_recurring: e.target.checked})} className="w-4 h-4 rounded bg-slate-950 border-slate-800 text-emerald-500 focus:ring-emerald-500" />
+                          <label htmlFor="task_diaria" className="text-sm font-bold text-slate-300">Tarefa Diária (Recorrente)</label>
                         </div>
                       </>
                     )}
@@ -3987,6 +4158,21 @@ export default function App() {
                 </button>
               </div>
               <div className="space-y-4 mb-6">
+                {(reportType === 'tasks' || reportType === 'productivity') && USER_PROFILES[currentUserProfile]?.role === 'administrator' && (
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Usuário</label>
+                    <select
+                      value={reportModalUser}
+                      onChange={(e) => setReportModalUser(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50"
+                    >
+                      <option value="all">Todos os Usuários</option>
+                      {RESPONSAVEIS.map((r: any) => (
+                        <option key={r.value} value={r.value}>{r.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Data Inicial (opcional)</label>
                   <input
@@ -4008,7 +4194,8 @@ export default function App() {
               </div>
               <Button
                 onClick={() => {
-                  executeReport(reportType, reportDateStart, reportDateEnd);
+                  const finalUser = USER_PROFILES[currentUserProfile]?.role === 'administrator' ? reportModalUser : currentUserProfile;
+                  executeReport(reportType, reportDateStart, reportDateEnd, finalUser);
                   setIsReportModalOpen(false);
                 }}
                 className="w-full py-4 text-xs font-bold uppercase tracking-widest"

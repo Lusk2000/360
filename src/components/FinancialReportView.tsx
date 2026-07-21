@@ -113,7 +113,7 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
     if (!fixedExpenseForm.name || !fixedExpenseForm.value || !fixedExpenseForm.day) return;
     
     const isNew = !fixedExpenseForm.id;
-    const payload = {
+    const payload: any = {
       titulo: '[GASTO_FIXO] ' + fixedExpenseForm.name,
       descricao: JSON.stringify({
         value: fixedExpenseForm.value,
