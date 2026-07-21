@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { generateExecutiveReport, ReportCard, ReportTable } from './utils/pdfGenerator';
+import { syncFixedExpenses, getPendingFixedExpensesNotifications } from './utils/fixedExpenses';
 import { 
   Users, Briefcase, ArrowUpCircle, 
   ArrowDownCircle, DollarSign, Plus, Trash2, Edit3, 
@@ -102,6 +103,21 @@ const USER_PROFILES: any = {
       can_delete: true
     } 
   },
+  
+  'caetanomentor360@gmail.com': { 
+    role: 'administrator', 
+    label: 'Caetano',
+    email: 'caetanomentor360@gmail.com',
+    permissions: { 
+      full_access: true, 
+      financial: 'full', 
+      reports: 'full',
+      agenda: 'full', 
+      services: 'full',
+      can_delete: true
+    } 
+  },
+
   'vagnergestor360@gmail.com': { 
     role: 'administrator', 
     label: 'Vagner',
@@ -1207,7 +1223,7 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
 
 // --- App Principal ---
 
-const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_PROFILES, supabase, onDownload }: any) => {
+const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_PROFILES, supabase }: any) => {
   const [currentTime, setCurrentTime] = React.useState(new Date());
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [showHistory, setShowHistory] = React.useState(false);
@@ -1629,7 +1645,10 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
       </div>
       
       <div className="flex justify-center mt-8 gap-4">
-        <Button onClick={onDownload} variant="secondary" className="py-4 px-8 text-sm font-black tracking-widest bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20">
+        <Button onClick={() => setShowHistory(true)} variant="secondary" className="py-4 px-8 text-sm font-black tracking-widest bg-slate-800 hover:bg-slate-700 text-white">
+          VER HISTÓRICO DE PONTO
+        </Button>
+        <Button onClick={exportarFolhaPontoPDF} variant="secondary" className="py-4 px-8 text-sm font-black tracking-widest bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20">
           <Download size={16} className="mr-2" /> RELATÓRIO PDF
         </Button>
       </div>
@@ -1971,6 +1990,22 @@ export default function App() {
   const [itemToDelete, setItemToDelete] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Gastos Fixos
+  const [fixedExpensesNotifications, setFixedExpensesNotifications] = useState<any[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    if (tasks.length > 0 && transactions.length > 0) {
+      const notifications = getPendingFixedExpensesNotifications(tasks, transactions);
+      if (mounted) setFixedExpensesNotifications(notifications);
+      
+      syncFixedExpenses(tasks, transactions, supabase).then(inserted => {
+        if (inserted && mounted) fetchCollections('transactions');
+      });
+    }
+    return () => { mounted = false; };
+  }, [tasks, transactions]);
+
   // Failsafe: Reset processing state if it gets stuck
 
   // Lógica de Permissões Granulares
@@ -2270,7 +2305,7 @@ export default function App() {
 
 
 
-    const executeReport = (type: string, start: string, end: string, user: string = 'all') => {
+    const executeReport = (type: string, start: string, end: string) => {
     let periodStr = 'Geral';
     if (start && end) {
       periodStr = `${start.split('-').reverse().join('/')} até ${end.split('-').reverse().join('/')}`;
@@ -2573,57 +2608,6 @@ export default function App() {
           }
         ],
         filename: `geral_${new Date().toISOString().split('T')[0]}.pdf`
-      });
-    } else if (type === 'ponto') {
-      let fPontos = pontos;
-      if (start) fPontos = fPontos.filter((p:any) => (p.data_hora || '').substring(0,10) >= start);
-      if (end) fPontos = fPontos.filter((p:any) => (p.data_hora || '').substring(0,10) <= end);
-      if (user !== 'all') fPontos = fPontos.filter((p:any) => (p.usuario_email === user || p.usuario_nome === user));
-
-      const grouped: any = {};
-      fPontos.forEach((p: any) => {
-        const u = p.usuario_nome || p.usuario_email;
-        const dateObj = new Date(p.data_hora);
-        const dateStr = dateObj.toLocaleDateString('pt-BR');
-        const timeStr = dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-        const dayOfWeek = dateObj.toLocaleDateString('pt-BR', { weekday: 'short' });
-        if (!grouped[u]) grouped[u] = {};
-        if (!grouped[u][dateStr]) {
-          grouped[u][dateStr] = { dateStr, dayOfWeek, dateObj, 'Entrada': null, 'Saída Almoço': null, 'Retorno Almoço': null, 'Saída': null };
-        }
-        const parts = p.tipo.split('::justificativa::');
-        const baseTipo = parts[0];
-        if (!grouped[u][dateStr][baseTipo]) {
-          grouped[u][dateStr][baseTipo] = { time: timeStr, justificativa: parts.length > 1 ? parts[1] : null };
-        }
-      });
-
-      const additionalTables: any[] = [];
-      Object.entries(grouped).forEach(([userName, dates]: any) => {
-        const tableRows: any[] = [];
-        const sortedDays = Object.values(dates).sort((a: any, b: any) => b.dateObj.getTime() - a.dateObj.getTime());
-        sortedDays.forEach((day: any) => {
-          tableRows.push([
-            day.dayOfWeek,
-            day.dateStr,
-            day['Entrada'] ? day['Entrada'].time + (day['Entrada'].justificativa ? `(${day['Entrada'].justificativa})` : '') : '-',
-            day['Saída Almoço'] ? day['Saída Almoço'].time + (day['Saída Almoço'].justificativa ? `(${day['Saída Almoço'].justificativa})` : '') : '-',
-            day['Retorno Almoço'] ? day['Retorno Almoço'].time + (day['Retorno Almoço'].justificativa ? `(${day['Retorno Almoço'].justificativa})` : '') : '-',
-            day['Saída'] ? day['Saída'].time + (day['Saída'].justificativa ? `(${day['Saída'].justificativa})` : '') : '-',
-          ]);
-        });
-        additionalTables.push({
-          title: `Colaborador: ${userName}`,
-          head: [["Dia", "Data", "Entrada", "Saída Almoço", "Retorno", "Saída"]],
-          body: tableRows
-        });
-      });
-
-      generateExecutiveReport({
-        title: user !== 'all' ? 'Folha de Ponto Individual' : 'Folha de Ponto Geral',
-        period: periodStr,
-        additionalTables,
-        filename: `folha_de_ponto_${new Date().toISOString().split('T')[0]}.pdf`
       });
     }
   };
@@ -3177,6 +3161,37 @@ export default function App() {
 
         <div className="max-w-7xl mx-auto pb-20 space-y-10">
           <AnimatePresence>
+            {fixedExpensesNotifications.length > 0 && (
+              <motion.div 
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden space-y-4"
+              >
+                {fixedExpensesNotifications.map((notif: any) => (
+                  <div key={notif.id} className="bg-red-500/10 border border-red-500 p-5 rounded-3xl flex items-center justify-between gap-4 text-red-500 shadow-[0_0_20px_rgba(239,68,68,0.3)]">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center shrink-0">
+                        <DollarSign size={24} className="text-slate-950" />
+                      </div>
+                      <div>
+                        <h4 className="font-black text-lg tracking-tight">ALERTA DE VENCIMENTO: {notif.title}</h4>
+                        <p className="text-sm text-red-400/80 font-bold mt-1 uppercase tracking-widest">
+                          Venceu/Vence em {notif.dueDate.split('-').reverse().join('/')} | Valor: R$ {Number(notif.value).toLocaleString('pt-BR', {minimumFractionDigits:2})}
+                        </p>
+                      </div>
+                    </div>
+                    <Button onClick={() => { 
+                      supabase.from('transactions').update({ status: 'paid' }).eq('id', notif.id).then(() => fetchCollections('transactions')) 
+                    }} variant="danger" className="shrink-0 bg-red-500 text-slate-950 hover:bg-red-400 uppercase tracking-widest text-[10px] py-2 px-4 shadow-[0_0_15px_rgba(239,68,68,0.5)]">
+                      Marcar como Pago
+                    </Button>
+                  </div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <AnimatePresence>
             {connectionError && (
               <motion.div 
                 initial={{ height: 0, opacity: 0 }}
@@ -3578,6 +3593,11 @@ export default function App() {
                             {activeTab === 'financial_control' && (
                       <FinancialReportView 
                         transactions={transactions} 
+                        tasks={tasks}
+                        fetchCollections={fetchCollections}
+                        currentUserProfile={currentUserProfile}
+                        user={user}
+                        supabase={supabase}
                         permissions={permissions} 
                         setEditingId={setEditingId} 
                         setFormData={setFormData} 
@@ -3621,7 +3641,7 @@ export default function App() {
                 />
               )}
               {activeTab === 'ponto' && (
-                <PontoView currentUserProfile={currentUserProfile} pontos={pontos} setPontos={setPontos} isSystemAdmin={isSystemAdmin} USER_PROFILES={USER_PROFILES} supabase={supabase} onDownload={() => { setReportType('ponto'); setIsReportModalOpen(true); }} />
+                <PontoView currentUserProfile={currentUserProfile} pontos={pontos} setPontos={setPontos} isSystemAdmin={isSystemAdmin} USER_PROFILES={USER_PROFILES} supabase={supabase} />
               )}
             </motion.div>
           </AnimatePresence>
@@ -3968,19 +3988,6 @@ export default function App() {
               </div>
               <div className="space-y-4 mb-6">
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Colaborador</label>
-                  <select
-                    value={reportFilterUser}
-                    onChange={(e) => setReportFilterUser(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50"
-                  >
-                    <option value="all">Todos os Usuários</option>
-                    {RESPONSAVEIS.map((r: any) => (
-                      <option key={r.value} value={r.value}>{r.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Data Inicial (opcional)</label>
                   <input
                     type="date"
@@ -4001,7 +4008,7 @@ export default function App() {
               </div>
               <Button
                 onClick={() => {
-                  executeReport(reportType, reportDateStart, reportDateEnd, reportFilterUser);
+                  executeReport(reportType, reportDateStart, reportDateEnd);
                   setIsReportModalOpen(false);
                 }}
                 className="w-full py-4 text-xs font-bold uppercase tracking-widest"

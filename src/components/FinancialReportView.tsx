@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { generateExecutiveReport } from '../utils/pdfGenerator';
-import { Download, ArrowUpCircle, Plus, DollarSign, TrendingUp, TrendingDown, Activity, FileText, PieChart, BarChart3, CreditCard, Edit3, Trash2 } from 'lucide-react';
+import { getFixedExpensesTasks, parseFixedExpense } from '../utils/fixedExpenses';
+import { Download, ArrowUpCircle, Plus, DollarSign, TrendingUp, TrendingDown, Activity, FileText, PieChart, BarChart3, CreditCard, Edit3, Trash2, CalendarIcon, CheckCircle, X } from 'lucide-react';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell, Legend } from 'recharts';
 
 const Card = ({ children, className = "" }: any) => (
@@ -24,7 +25,7 @@ const Button = ({ children, onClick = () => {}, variant = "primary", className =
   );
 };
 
-export default function FinancialReportView({ transactions, permissions, setEditingId, setFormData, setIsModalOpen, setItemToDelete, onDownload }: any) {
+export default function FinancialReportView({ transactions, tasks = [], fetchCollections, currentUserProfile, user, supabase, permissions, setEditingId, setFormData, setIsModalOpen, setItemToDelete, onDownload }: any) {
 
   const handleDownloadFinance = () => {
     generateExecutiveReport({
@@ -74,6 +75,82 @@ export default function FinancialReportView({ transactions, permissions, setEdit
   };
 
   const [activeTab, setActiveTab] = useState('resumo');
+  const [isFixedExpenseModalOpen, setIsFixedExpenseModalOpen] = useState(false);
+  const [fixedExpenseForm, setFixedExpenseForm] = useState<any>({});
+  
+  const fixedExpensesTasks = useMemo(() => getFixedExpensesTasks(tasks).map(parseFixedExpense).filter(Boolean), [tasks]);
+  
+  
+  const handleDownloadGastosFixos = () => {
+    const tableData = fixedExpensesTasks.map((ft: any) => [
+      ft.name || ft.titulo?.replace('[GASTO_FIXO] ', ''),
+      ft.category,
+      ft.recurrence,
+      'Dia ' + ft.day,
+      'R$ ' + Number(ft.value).toLocaleString('pt-BR', {minimumFractionDigits: 2}),
+      ft.active ? 'Ativo' : 'Inativo'
+    ]);
+    
+    generateExecutiveReport({
+      title: 'Relatório de Gastos Fixos (Despesas Recorrentes)',
+      period: 'Posição Atual',
+      cards: [
+        { label: 'Total de Gastos Fixos', value: fixedExpensesTasks.length, color: [37, 99, 235] },
+        { label: 'Ativos', value: fixedExpensesTasks.filter((f: any) => f.active).length, color: [34, 197, 94] },
+        { label: 'Valor Total Estimado (Mês)', value: 'R$ ' + fixedExpensesTasks.filter((f: any) => f.active).reduce((acc: number, f: any) => acc + Number(f.value), 0).toLocaleString('pt-BR', {minimumFractionDigits: 2}), color: [239, 68, 68] }
+      ],
+      mainTable: {
+        title: 'Lista de Gastos Fixos',
+        head: [['Despesa', 'Categoria', 'Recorrência', 'Vencimento', 'Valor', 'Status']],
+        body: tableData
+      },
+      filename: `gastos_fixos_${new Date().toISOString().split('T')[0]}.pdf`
+    });
+  };
+
+  const handleSaveFixedExpense = async (e: any) => {
+    e.preventDefault();
+    if (!fixedExpenseForm.name || !fixedExpenseForm.value || !fixedExpenseForm.day) return;
+    
+    const isNew = !fixedExpenseForm.id;
+    const payload = {
+      titulo: '[GASTO_FIXO] ' + fixedExpenseForm.name,
+      descricao: JSON.stringify({
+        value: fixedExpenseForm.value,
+        category: fixedExpenseForm.category,
+        day: fixedExpenseForm.day,
+        recurrence: fixedExpenseForm.recurrence,
+        paymentMethod: fixedExpenseForm.paymentMethod,
+        obs: fixedExpenseForm.obs
+      }),
+      status: fixedExpenseForm.active === false ? 'done' : 'pending',
+      is_recurring: true,
+      updated_at: new Date().toISOString()
+    };
+    
+    if (isNew) {
+      payload.created_at = new Date().toISOString();
+      if (user?.id) payload.user_id = user.id;
+    }
+    
+    try {
+      if (isNew) {
+        const { error } = await supabase.from('tasks').insert(payload);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('tasks').update(payload).eq('id', fixedExpenseForm.id);
+        if (error) throw error;
+      }
+    } catch (err: any) {
+      console.error('Erro ao salvar:', err);
+      alert('Erro ao salvar Gasto Fixo: ' + err.message);
+      return;
+    }
+    
+    setIsFixedExpenseModalOpen(false);
+    fetchCollections('tasks');
+  };
+
 
   const incomeTransactions = transactions.filter((t: any) => t.type === 'income');
   const expenseTransactions = transactions.filter((t: any) => t.type === 'expense');
@@ -171,7 +248,7 @@ export default function FinancialReportView({ transactions, permissions, setEdit
       </div>
 
       <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-hide">
-        {['resumo', 'movimentacoes', 'graficos', 'analise'].map(tab => (
+        {['resumo', 'movimentacoes', 'graficos', 'analise', 'gastos_fixos'].map(tab => (
           <button 
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -181,6 +258,7 @@ export default function FinancialReportView({ transactions, permissions, setEdit
             {tab === 'movimentacoes' && 'Lançamentos'}
             {tab === 'graficos' && 'Gráficos'}
             {tab === 'analise' && 'Análise de IA'}
+            {tab === 'gastos_fixos' && 'Gastos Fixos'}
           </button>
         ))}
       </div>
@@ -394,6 +472,165 @@ export default function FinancialReportView({ transactions, permissions, setEdit
           </Card>
         </div>
       )}
+
+      {activeTab === 'gastos_fixos' && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h3 className="text-lg font-black text-white tracking-tighter">Despesas Recorrentes</h3>
+              <p className="text-sm text-slate-400">Gerencie seus gastos fixos e evite esquecimentos.</p>
+            </div>
+            
+            <button onClick={handleDownloadGastosFixos} className="bg-slate-800 text-slate-300 font-black px-4 py-2 rounded-xl text-xs uppercase tracking-widest hover:bg-slate-700 transition-all border border-slate-700 flex items-center gap-2">
+              <Download size={14} /> PDF
+            </button>
+            {permissions?.canEdit('financial_control') && (
+            <button onClick={() => { setFixedExpenseForm({ recurrence: 'Mensal', category: 'Operacional', paymentMethod: 'PIX', active: true }); setIsFixedExpenseModalOpen(true); }} className="bg-emerald-500 text-slate-950 font-black px-4 py-2 rounded-xl text-xs uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] flex items-center gap-2">
+
+              <Plus size={14} /> Adicionar
+            </button>
+            )}
+          </div>
+          <Card className="overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-900 border-b border-slate-800">
+                    <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-widest whitespace-nowrap">Despesa</th>
+                    <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-widest whitespace-nowrap">Recorrência</th>
+                    <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-widest whitespace-nowrap">Vencimento</th>
+                    <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-widest whitespace-nowrap text-right">Valor</th>
+                    <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-widest whitespace-nowrap text-center">Status</th>
+                    <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-widest whitespace-nowrap text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/50">
+                  {fixedExpensesTasks.map((ft: any) => (
+                    <tr key={ft.id} className="hover:bg-slate-800/20 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-white text-sm">{ft.name || ft.titulo?.replace('[GASTO_FIXO] ', '')}</div>
+                        <div className="text-xs text-slate-500 mt-1">{ft.category} • {ft.paymentMethod}</div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-300 font-medium">{ft.recurrence}</td>
+                      <td className="px-6 py-4 text-sm text-slate-300 font-mono">Dia {ft.day}</td>
+                      <td className="px-6 py-4 text-sm text-red-400 font-black font-mono text-right">
+                        R$ {Number(ft.value).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`px-2 py-1 rounded-md text-[10px] uppercase tracking-widest font-bold ${ft.active ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
+                          {ft.active ? 'Ativo' : 'Inativo'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right space-x-2">
+                        <button onClick={() => {
+                          setFixedExpenseForm({ ...ft, name: ft.name || ft.titulo?.replace('[GASTO_FIXO] ', '') });
+                          setIsFixedExpenseModalOpen(true);
+                        }} className="p-2 text-slate-500 hover:text-emerald-400 bg-slate-900 border border-slate-800 hover:border-emerald-500/50 rounded-lg shadow-sm transition-all" title="Editar">
+                          <Edit3 size={14} />
+                        </button>
+                        {permissions?.canDelete('financial_control') && (
+                          <button onClick={() => {
+                            setItemToDelete({ id: ft.id, type: 'tasks', collName: 'tasks' });
+                          }} className="p-2 text-slate-500 hover:text-red-400 bg-slate-900 border border-slate-800 hover:border-red-500/50 rounded-lg shadow-sm transition-all" title="Excluir">
+                          <Trash2 size={14} />
+                        </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {fixedExpensesTasks.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center">
+                        <p className="text-slate-500 text-sm italic mb-2">Nenhum gasto fixo cadastrado.</p>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
+
+
+      {isFixedExpenseModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center p-6 border-b border-slate-800">
+              <h3 className="text-xl font-black text-white tracking-tighter">
+                {fixedExpenseForm.id ? 'Editar Gasto Fixo' : 'Novo Gasto Fixo'}
+              </h3>
+              <button onClick={() => setIsFixedExpenseModalOpen(false)} className="text-slate-500 hover:text-white transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nome da Despesa</label>
+                <input type="text" required value={fixedExpenseForm.name || ''} onChange={(e) => setFixedExpenseForm({...fixedExpenseForm, name: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" placeholder="Ex: Aluguel" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Categoria</label>
+                  <select value={fixedExpenseForm.category || 'Operacional'} onChange={(e) => setFixedExpenseForm({...fixedExpenseForm, category: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50">
+                    <option value="Operacional">Operacional</option>
+                    <option value="Marketing">Marketing</option>
+                    <option value="Ferramentas">Ferramentas</option>
+                    <option value="Impostos">Impostos</option>
+                    <option value="Pessoal">Pessoal</option>
+                    <option value="Outros">Outros</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Valor (R$)</label>
+                  <input type="number" step="0.01" required value={fixedExpenseForm.value || ''} onChange={(e) => setFixedExpenseForm({...fixedExpenseForm, value: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Dia do Vencimento</label>
+                  <input type="number" min="1" max="31" required value={fixedExpenseForm.day || ''} onChange={(e) => setFixedExpenseForm({...fixedExpenseForm, day: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" placeholder="Ex: 15" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Recorrência</label>
+                  <select value={fixedExpenseForm.recurrence || 'Mensal'} onChange={(e) => setFixedExpenseForm({...fixedExpenseForm, recurrence: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50">
+                    <option value="Mensal">Mensal</option>
+                    <option value="Quinzenal">Quinzenal</option>
+                    <option value="Semanal">Semanal</option>
+                    <option value="Anual">Anual</option>
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Forma de Pagamento</label>
+                <select value={fixedExpenseForm.paymentMethod || 'PIX'} onChange={(e) => setFixedExpenseForm({...fixedExpenseForm, paymentMethod: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50">
+                  <option value="PIX">PIX</option>
+                  <option value="Boleto">Boleto</option>
+                  <option value="Cartão de Crédito">Cartão de Crédito</option>
+                  <option value="Transferência">Transferência</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Observações</label>
+                <textarea value={fixedExpenseForm.obs || ''} onChange={(e) => setFixedExpenseForm({...fixedExpenseForm, obs: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50 h-20 resize-none" />
+              </div>
+              <div className="flex items-center gap-3 p-4 bg-slate-950 border border-slate-800 rounded-xl">
+                <input type="checkbox" id="fe_active" checked={fixedExpenseForm.active !== false} onChange={(e) => setFixedExpenseForm({...fixedExpenseForm, active: e.target.checked})} className="w-4 h-4 accent-emerald-500 rounded bg-slate-800 border-slate-700" />
+                <label htmlFor="fe_active" className="text-sm font-bold text-slate-300">Gasto Fixo Ativo (Gerar lançamentos)</label>
+              </div>
+            </div>
+            <div className="p-6 border-t border-slate-800 flex gap-3">
+              <button onClick={() => setIsFixedExpenseModalOpen(false)} className="flex-1 py-3 text-slate-400 bg-slate-950 border border-slate-800 hover:bg-slate-800 rounded-xl font-bold uppercase tracking-widest text-xs transition-colors">
+                Cancelar
+              </button>
+              <button onClick={handleSaveFixedExpense} className="flex-1 py-3 text-slate-950 bg-emerald-500 hover:bg-emerald-400 rounded-xl font-bold uppercase tracking-widest text-xs transition-colors shadow-lg shadow-emerald-500/20">
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
