@@ -2018,7 +2018,7 @@ export default function App() {
       if (tab === 'clients' || tab === 'tasks' || tab === 'ponto') return true;
       if (tab === 'financial_control') return p.financial !== 'none';
       if (tab === 'agenda') return p.agenda !== 'none';
-      if (tab === 'services') return p.services !== 'none';
+      if (tab === 'servicos') return p.services !== 'none';
       if (tab === 'reports') return p.financial !== 'none' && p.reports !== 'none';
       return false;
     };
@@ -2027,7 +2027,7 @@ export default function App() {
       if (p.full_access) return true;
       if (tab === 'clients' || tab === 'tasks' || tab === 'ponto') return true; // Clientes e tarefas todos podem editar por padrão
       if (tab === 'agenda' || tab === 'appointments') return p.agenda === 'full';
-      if (tab === 'services') return p.services === 'full';
+      if (tab === 'servicos') return p.services === 'full';
       return false;
     };
     const canDelete = (tab?: string) => {
@@ -2037,7 +2037,7 @@ export default function App() {
       if (!tab) return false;
       if (tab === 'clients' || tab === 'tasks' || tab === 'ponto') return true;
       if (tab === 'agenda' || tab === 'appointments') return p.agenda === 'full';
-      if (tab === 'services') return p.services === 'full';
+      if (tab === 'servicos') return p.services === 'full';
       return false;
     };
     
@@ -2141,7 +2141,7 @@ export default function App() {
       ? [{ name: collectionName, setter: getSetter(collectionName) }]
       : [
           { name: 'clients', setter: setClients },
-          { name: 'services', setter: setServices },
+          { name: 'servicos', setter: setServices },
           { name: 'transactions', setter: setTransactions },
           { name: 'appointments', setter: setAppointments },
           { name: 'tasks', setter: setTasks },
@@ -2293,7 +2293,7 @@ export default function App() {
 
   function getSetter(name: string) {
     if (name === 'clients') return setClients;
-    if (name === 'services') return setServices;
+    if (name === 'servicos') return setServices;
     if (name === 'transactions') return setTransactions;
     if (name === 'appointments') return setAppointments;
     if (name === 'tasks') return setTasks;
@@ -2620,7 +2620,7 @@ export default function App() {
 
     fetchCollections();
 
-    const collections = ['clients', 'services', 'transactions', 'appointments', 'tasks'];
+    const collections = ['clients', 'servicos', 'transactions', 'appointments', 'tasks'];
     
     // Clear any stale channels first to prevent duplicate bindings on fast remounts (React StrictMode)
     supabase.getChannels().forEach(channel => supabase.removeChannel(channel));
@@ -2734,7 +2734,7 @@ export default function App() {
     try {
       const collectionName: any = {
         'clients': 'clients',
-        'services': 'clients',
+        'servicos': 'clients',
         'financial_control': 'transactions',
         'agenda': 'appointments',
         'tasks': 'tasks'
@@ -2759,7 +2759,7 @@ export default function App() {
       }
 
       // JSON Trick para Clientes + Serviços
-      if (collectionName === 'clients' || collectionName === 'services') {
+      if (collectionName === 'clients' || collectionName === 'servicos') {
         const parsedEmail = {
           email: payload.email || '',
           servico: payload.servico || '',
@@ -3607,7 +3607,7 @@ export default function App() {
                       />
                     )}
 
-              {(activeTab === 'clients' || activeTab === 'services') && (
+              {(activeTab === 'clients' || activeTab === 'servicos') && (
                 <ListView 
                    title={(currentUserProfile === 'gabriel360@gmail.com' || currentUserProfile === 'cassio360@gmail.com') ? "Registro de Clientes" : "Registro de Clientes e Serviços"} 
                    data={clients} 
@@ -3782,7 +3782,7 @@ export default function App() {
                   </div>
                   
                   <div className="space-y-4">
-                    {(activeTab === 'clients' || activeTab === 'services') && (
+                    {(activeTab === 'clients' || activeTab === 'servicos') && (
                       <>
                         <div className="space-y-2">
                           <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nome do Cliente</label>
@@ -3800,7 +3800,7 @@ export default function App() {
                           <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Rede Social</label>
                           <input type="text" value={formData.rede_social || ''} onChange={(e) => setFormData({...formData, rede_social: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
                         </div>
-                        {activeTab === 'services' && (
+                        {activeTab === 'servicos' && (
                           <>
                             <div className="space-y-2">
                               <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Serviços</label>

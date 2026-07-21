@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS public.clients (
   user_id UUID
 );
 
-CREATE TABLE IF NOT EXISTS public.services (
+CREATE TABLE IF NOT EXISTS public.servicos (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   created_at TIMESTAMPTZ DEFAULT now(),
   nome TEXT,
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS public.pontos (
 
 -- 2. Habilitar RLS (Segurança) em todas as tabelas
 ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.services ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.servicos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
@@ -76,7 +76,7 @@ DO $$
 DECLARE
     tbl text;
 BEGIN
-    FOR tbl IN SELECT unnest(ARRAY['clients', 'services', 'transactions', 'appointments', 'tasks', 'pontos']) LOOP
+    FOR tbl IN SELECT unnest(ARRAY['clients', 'servicos', 'transactions', 'appointments', 'tasks', 'pontos']) LOOP
         -- Remove políticas anteriores
         EXECUTE format('DROP POLICY IF EXISTS "Permitir acesso total para administradores" ON public.%I', tbl);
         
