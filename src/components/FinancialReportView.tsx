@@ -77,6 +77,7 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
   const [activeTab, setActiveTab] = useState('resumo');
   const [isFixedExpenseModalOpen, setIsFixedExpenseModalOpen] = useState(false);
   const [fixedExpenseForm, setFixedExpenseForm] = useState<any>({});
+  const [isProcessing, setIsProcessing] = useState(false);
   
   const fixedExpensesTasks = useMemo(() => getFixedExpensesTasks(tasks).map(parseFixedExpense).filter(Boolean), [tasks]);
   
@@ -112,6 +113,7 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
     e.preventDefault();
     if (!fixedExpenseForm.name || !fixedExpenseForm.value || !fixedExpenseForm.day) return;
     
+    setIsProcessing(true);
     const isNew = !fixedExpenseForm.id;
     const payload: any = {
       titulo: '[GASTO_FIXO] ' + fixedExpenseForm.name,
@@ -144,9 +146,11 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
     } catch (err: any) {
       console.error('Erro ao salvar:', err);
       alert('Erro ao salvar Gasto Fixo: ' + err.message);
+      setIsProcessing(false);
       return;
     }
     
+    setIsProcessing(false);
     setIsFixedExpenseModalOpen(false);
     fetchCollections('tasks');
   };
@@ -236,9 +240,11 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
           <p className="text-sm text-slate-400">Visão financeira estratégica e resultados operacionais</p>
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto">
-          <Button onClick={onDownload} variant="secondary" className="flex-1 sm:flex-none px-4 py-2.5 text-[11px] uppercase tracking-widest gap-2">
-            <Download size={14} /> PDF
-          </Button>
+          {permissions.canExportReport('finance') && (
+            <Button onClick={onDownload} variant="secondary" className="flex-1 sm:flex-none px-4 py-2.5 text-[11px] uppercase tracking-widest gap-2">
+              <Download size={14} /> PDF
+            </Button>
+          )}
           {permissions.canEdit('financial_control') && (
             <Button onClick={() => { setEditingId(null); setFormData({ type: 'income', status: 'pending', data: new Date().toISOString().split('T')[0], forma_pagamento: 'PIX', categoria: 'Serviços' }); setIsModalOpen(true); }} className="flex-1 sm:flex-none py-2.5 px-4 text-[11px] uppercase tracking-widest gap-2">
               <Plus size={14} /> Novo Lançamento
@@ -555,8 +561,8 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
 
       {isFixedExpenseModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="flex justify-between items-center p-6 border-b border-slate-800">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[95vh] sm:max-h-[90vh]">
+            <div className="flex justify-between items-center p-6 border-b border-slate-800 flex-shrink-0">
               <h3 className="text-xl font-black text-white tracking-tighter">
                 {fixedExpenseForm.id ? 'Editar Gasto Fixo' : 'Novo Gasto Fixo'}
               </h3>
@@ -564,7 +570,7 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
                 <X size={20} />
               </button>
             </div>
-            <div className="p-6 overflow-y-auto space-y-4">
+            <div className="p-6 overflow-y-auto space-y-4 flex-1 custom-scrollbar">
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nome da Despesa</label>
                 <input type="text" required value={fixedExpenseForm.name || ''} onChange={(e) => setFixedExpenseForm({...fixedExpenseForm, name: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" placeholder="Ex: Aluguel" />
@@ -619,12 +625,12 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
                 <label htmlFor="fe_active" className="text-sm font-bold text-slate-300">Gasto Fixo Ativo (Gerar lançamentos)</label>
               </div>
             </div>
-            <div className="p-6 border-t border-slate-800 flex gap-3">
-              <button onClick={() => setIsFixedExpenseModalOpen(false)} className="flex-1 py-3 text-slate-400 bg-slate-950 border border-slate-800 hover:bg-slate-800 rounded-xl font-bold uppercase tracking-widest text-xs transition-colors">
+            <div className="p-6 border-t border-slate-800 flex gap-3 flex-shrink-0 bg-slate-900">
+              <button disabled={isProcessing} onClick={() => setIsFixedExpenseModalOpen(false)} className="flex-1 py-3 text-slate-400 bg-slate-950 border border-slate-800 hover:bg-slate-800 rounded-xl font-bold uppercase tracking-widest text-xs transition-colors disabled:opacity-50">
                 Cancelar
               </button>
-              <button onClick={handleSaveFixedExpense} className="flex-1 py-3 text-slate-950 bg-emerald-500 hover:bg-emerald-400 rounded-xl font-bold uppercase tracking-widest text-xs transition-colors shadow-lg shadow-emerald-500/20">
-                Salvar
+              <button disabled={isProcessing} onClick={handleSaveFixedExpense} className="flex-1 py-3 text-slate-950 bg-emerald-500 hover:bg-emerald-400 rounded-xl font-bold uppercase tracking-widest text-xs transition-colors shadow-lg shadow-emerald-500/20 disabled:opacity-50">
+                {isProcessing ? 'Salvando...' : 'Salvar'}
               </button>
             </div>
           </div>

@@ -11,14 +11,23 @@ export interface ReportTable {
   didParseCell?: (data: any) => void;
 }
 
+export interface ReportUserPage {
+  userName: string;
+  cards?: ReportCard[];
+  progressBar?: { label: string, percent: number };
+  mainTable?: ReportTable;
+}
+
 export interface ExecutiveReportConfig {
   title: string;
   period: string;
   author?: string;
   cards?: ReportCard[];
+  progressBar?: { label: string, percent: number };
   summary?: string;
   mainTable?: ReportTable;
   additionalTables?: ReportTable[];
+  userPages?: ReportUserPage[];
   observations?: boolean;
   finalSummary?: string;
   filename?: string;
@@ -130,6 +139,30 @@ export const generateExecutiveReport = async (config: ExecutiveReportConfig) => 
     currentY = cardY + 35;
   }
 
+  // Progress Bar
+  if (config.progressBar) {
+    checkPageBreak(30);
+    doc.setFontSize(10);
+    doc.setTextColor(lightText[0], lightText[1], lightText[2]);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${config.progressBar.label} - ${config.progressBar.percent}%`, 14, currentY);
+    
+    currentY += 5;
+    
+    // Background bar
+    doc.setFillColor(30, 41, 59);
+    doc.roundedRect(14, currentY, 182, 6, 3, 3, 'F');
+    
+    // Foreground bar
+    const barWidth = (182 * config.progressBar.percent) / 100;
+    if (barWidth > 0) {
+      doc.setFillColor(successColor[0], successColor[1], successColor[2]);
+      doc.roundedRect(14, currentY, barWidth, 6, 3, 3, 'F');
+    }
+    
+    currentY += 20;
+  }
+
   // Resumo Executivo
   if (config.summary) {
     checkPageBreak(40);
@@ -228,6 +261,99 @@ export const generateExecutiveReport = async (config: ExecutiveReportConfig) => 
     doc.setTextColor(lightText[0], lightText[1], lightText[2]);
     const splitSummaryText = doc.splitTextToSize(config.finalSummary, 180);
     doc.text(splitSummaryText, 14, currentY);
+  }
+
+  if (config.userPages && config.userPages.length > 0) {
+    config.userPages.forEach((userPage) => {
+      addExecutivePage();
+      currentY = 20;
+      sectionIndex = 1;
+
+      // Header para a página do usuário
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(22);
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.text(`Relatório Individual: ${userPage.userName}`, 105, currentY, { align: 'center' });
+      currentY += 20;
+
+      // Cards do Usuário
+      if (userPage.cards && userPage.cards.length > 0) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+        doc.text(`Resumo - ${userPage.userName}`, 14, currentY);
+        currentY += 15;
+
+        let cardX = 14;
+        let cardY = currentY;
+        userPage.cards.forEach((card, index) => {
+            if (index > 0 && index % 3 === 0) {
+                cardX = 14;
+                cardY += 25;
+                checkPageBreak(30);
+                if (currentY === 20) { cardY = currentY; }
+            }
+            doc.setFillColor(30, 41, 59);
+            doc.roundedRect(cardX, cardY, 55, 20, 2, 2, 'F');
+            doc.setFontSize(8);
+            doc.setTextColor(lightText[0], lightText[1], lightText[2]);
+            doc.setFont('helvetica', 'normal');
+            doc.text(card.label, cardX + 5, cardY + 7);
+            doc.setFontSize(12);
+            
+            const cardColor = card.color || primaryColor;
+            doc.setTextColor(cardColor[0], cardColor[1], cardColor[2]);
+            doc.setFont('helvetica', 'bold');
+            doc.text(String(card.value), cardX + 5, cardY + 16);
+            cardX += 60;
+        });
+        currentY = cardY + 35;
+      }
+
+      // Progress Bar do Usuário
+      if (userPage.progressBar) {
+        checkPageBreak(30);
+        doc.setFontSize(10);
+        doc.setTextColor(lightText[0], lightText[1], lightText[2]);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${userPage.progressBar.label} - ${userPage.progressBar.percent}%`, 14, currentY);
+        
+        currentY += 5;
+        
+        doc.setFillColor(30, 41, 59);
+        doc.roundedRect(14, currentY, 182, 6, 3, 3, 'F');
+        
+        const barWidth = (182 * userPage.progressBar.percent) / 100;
+        if (barWidth > 0) {
+          doc.setFillColor(successColor[0], successColor[1], successColor[2]);
+          doc.roundedRect(14, currentY, barWidth, 6, 3, 3, 'F');
+        }
+        
+        currentY += 20;
+      }
+
+      // Tabela Principal do Usuário
+      if (userPage.mainTable) {
+        checkPageBreak(40);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+        doc.text(`${userPage.mainTable.title || 'Tarefas'} - ${userPage.userName}`, 14, currentY);
+        currentY += 10;
+
+        autoTable(doc, {
+            startY: currentY,
+            head: userPage.mainTable.head,
+            body: userPage.mainTable.body,
+            theme: 'grid',
+            headStyles: { fillColor: primaryColor, textColor: [255, 255, 255], fontStyle: 'bold' },
+            styles: { fontSize: 8, fillColor: [30, 41, 59], textColor: [255, 255, 255], lineColor: [51, 65, 85] },
+            alternateRowStyles: { fillColor: [15, 23, 42] },
+            didParseCell: userPage.mainTable.didParseCell
+        });
+        currentY = (doc as any).lastAutoTable.finalY + 15;
+      }
+    });
   }
 
   const defaultFilename = `relatorio_${dateStr.replace(/\//g, '-')}.pdf`;

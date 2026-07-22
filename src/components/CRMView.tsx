@@ -52,6 +52,7 @@ export const CRMView = ({
   const canViewValor = allowedNames.includes(userLabel);
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
+  const [selectedStatusForModal, setSelectedStatusForModal] = useState<string | null>(null);
 
   const filteredClients = useMemo(() => {
     return clients.filter((c: any) => {
@@ -218,54 +219,22 @@ export const CRMView = ({
       </div>
 
       {viewMode === 'kanban' ? (
-        <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4">
-          <div className="flex gap-4 h-full min-w-max">
-            {CRM_STATUSES.map(status => (
-              <div 
-                key={status} 
-                className="w-72 bg-slate-900/50 border border-slate-800 rounded-2xl flex flex-col h-full"
-                onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, status)}
-              >
-                <div className="p-4 border-b border-slate-800/80 flex justify-between items-center bg-slate-900 rounded-t-2xl">
-                   <h3 className={`text-xs font-bold uppercase tracking-widest px-2 py-1 rounded-md border ${STATUS_COLORS[status]}`}>{status}</h3>
-                   <span className="text-xs font-black text-slate-500 bg-slate-800 px-2 py-0.5 rounded-full">
-                     {filteredClients.filter((c: any) => (c.status || 'Novo Lead') === status).length}
-                   </span>
+        <div className="flex-1 overflow-y-auto pb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {CRM_STATUSES.map(status => {
+              const count = filteredClients.filter((c: any) => (c.status || 'Novo Lead') === status).length;
+              return (
+                <div 
+                  key={status} 
+                  onClick={() => setSelectedStatusForModal(status)}
+                  className="bg-slate-900 border border-slate-800 rounded-2xl p-6 cursor-pointer hover:bg-slate-800 hover:-translate-y-1 transition-all flex flex-col items-center justify-center text-center gap-3 shadow-lg group"
+                >
+                  <h3 className={`text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-md border ${STATUS_COLORS[status]}`}>{status}</h3>
+                  <span className="text-4xl font-black text-slate-300 group-hover:text-white transition-colors">{count}</span>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-widest">Leads</span>
                 </div>
-                <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-slate-800">
-                  {filteredClients.filter((c: any) => (c.status || 'Novo Lead') === status).map((client: any) => (
-                    <div 
-                      key={client.id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, client.id)}
-                      onClick={() => openClientDetails(client)}
-                      className="bg-slate-800 p-4 rounded-xl cursor-grab active:cursor-grabbing hover:bg-slate-700/80 transition-colors shadow-lg border border-slate-700/50 group"
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="font-bold text-sm text-white line-clamp-1">{client.nome || 'Sem Nome'}</div>
-                        {client.prioridade && (
-                          <div className={`text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-wider ${
-                            client.prioridade === 'Alta' ? 'bg-red-500/20 text-red-400' :
-                            client.prioridade === 'Média' ? 'bg-amber-500/20 text-amber-400' :
-                            'bg-blue-500/20 text-blue-400'
-                          }`}>
-                            {client.prioridade}
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-xs font-medium text-slate-400 mb-3 flex items-center gap-1 line-clamp-1">
-                        <Building2 size={12} /> {client.empresa || 'Sem Empresa'}
-                      </div>
-                      <div className="flex gap-2 text-[10px] text-slate-500">
-                        {client.telefone && <span className="flex items-center gap-1"><Phone size={10} /> {client.telefone}</span>}
-                        {canViewValor && client.valor_servico && <span className="flex items-center gap-1 text-emerald-500/70"><DollarSign size={10} /> {client.valor_servico}</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ) : (
@@ -349,11 +318,11 @@ export const CRMView = ({
              initial={{ opacity: 0 }}
              animate={{ opacity: 1 }}
              exit={{ opacity: 0 }}
-             className="fixed inset-0 z-[70] flex flex-col p-4 sm:p-6 bg-slate-950/90 backdrop-blur-xl overflow-y-auto"
+             className="fixed inset-0 z-[70] flex flex-col p-4 sm:p-6 bg-slate-950/90 backdrop-blur-xl"
            >
-             <div className="w-full max-w-5xl mx-auto bg-slate-900 border border-slate-700 rounded-3xl overflow-hidden shadow-2xl flex flex-col min-h-[80vh]">
+             <div className="w-full max-w-5xl mx-auto bg-slate-900 border border-slate-700 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[95vh] sm:max-h-[90vh]">
                {/* HEADER */}
-               <div className="bg-slate-800/50 border-b border-slate-700 p-6 sm:p-8 flex justify-between items-start">
+               <div className="bg-slate-800/50 border-b border-slate-700 p-6 sm:p-8 flex justify-between items-start flex-shrink-0">
                   <div>
                     <h2 className="text-3xl font-black text-white tracking-tighter mb-2">{selectedClient.nome}</h2>
                     <div className="flex flex-wrap gap-4 text-xs font-medium text-slate-400">
@@ -374,9 +343,9 @@ export const CRMView = ({
                </div>
 
                {/* BODY */}
-               <div className="flex-1 flex flex-col md:flex-row">
+               <div className="flex-1 flex flex-col md:flex-row overflow-y-auto">
                  {/* LEFT COL - DETAILS */}
-                 <div className="w-full md:w-1/3 border-r border-slate-800 p-6 space-y-6">
+                 <div className="w-full md:w-1/3 border-r border-slate-800 p-6 space-y-6 overflow-y-auto custom-scrollbar">
                     <div>
                       <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Detalhes do Cadastro</h4>
                       <div className="space-y-3 text-sm">
@@ -544,6 +513,80 @@ export const CRMView = ({
                </div>
              </div>
            </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {selectedStatusForModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden"
+            >
+              <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-950">
+                <div>
+                  <h2 className="text-xl font-black text-white">{selectedStatusForModal}</h2>
+                  <p className="text-xs text-slate-500 font-bold tracking-widest uppercase mt-1">
+                    {filteredClients.filter((c: any) => (c.status || 'Novo Lead') === selectedStatusForModal).length} Leads
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setSelectedStatusForModal(null)}
+                  className="p-2 text-slate-400 hover:text-white bg-slate-900 rounded-xl transition-colors border border-slate-800 hover:border-slate-700"
+                >
+                  <XCircle size={20} />
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-6 bg-slate-900">
+                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                   {filteredClients.filter((c: any) => (c.status || 'Novo Lead') === selectedStatusForModal).map((client: any) => (
+                      <div 
+                        key={client.id}
+                        onClick={() => {
+                          setSelectedStatusForModal(null);
+                          openClientDetails(client);
+                        }}
+                        className="bg-slate-800 p-5 rounded-xl cursor-pointer hover:bg-slate-700/80 transition-all shadow-lg border border-slate-700/50 group flex flex-col hover:-translate-y-1"
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="font-bold text-sm text-white line-clamp-1">{client.nome || 'Sem Nome'}</div>
+                          {client.prioridade && (
+                            <div className={`text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-wider ${
+                              client.prioridade === 'Alta' ? 'bg-red-500/20 text-red-400' :
+                              client.prioridade === 'Média' ? 'bg-amber-500/20 text-amber-400' :
+                              'bg-blue-500/20 text-blue-400'
+                            }`}>
+                              {client.prioridade}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-xs font-medium text-slate-400 mb-4 flex items-center gap-1.5 line-clamp-1">
+                          <Building2 size={12} className="text-slate-500" /> {client.empresa || 'Sem Empresa'}
+                        </div>
+                        <div className="flex flex-col gap-2 text-[10px] text-slate-500 mt-auto">
+                          {client.telefone && <span className="flex items-center gap-1.5"><Phone size={10} className="text-slate-600" /> {client.telefone}</span>}
+                          {canViewValor && client.valor_servico && <span className="flex items-center gap-1.5 text-emerald-500/70 font-bold"><DollarSign size={10} /> {client.valor_servico}</span>}
+                        </div>
+                      </div>
+                   ))}
+                   {filteredClients.filter((c: any) => (c.status || 'Novo Lead') === selectedStatusForModal).length === 0 && (
+                      <div className="col-span-full py-16 flex flex-col items-center justify-center text-slate-500">
+                        <Users size={48} className="opacity-20 mb-4" />
+                        <span className="text-sm font-bold tracking-widest uppercase">Nenhum lead neste status</span>
+                      </div>
+                   )}
+                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

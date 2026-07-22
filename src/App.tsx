@@ -1221,6 +1221,14 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
   const [pendingPonto, setPendingPonto] = React.useState<string | null>(null);
   const [justificativa, setJustificativa] = React.useState('');
   const [showSettings, setShowSettings] = React.useState(false);
+  const [showManualAdd, setShowManualAdd] = React.useState(false);
+  const [manualAddData, setManualAddData] = React.useState({
+    tipo: 'Entrada',
+    data: new Date().toISOString().split('T')[0],
+    hora: '08:00',
+    usuario: currentUserProfile,
+    justificativa: ''
+  });
   const [settingsFormData, setSettingsFormData] = React.useState({
     hora_entrada: '08:00',
     tolerancia_entrada_antes: 15,
@@ -1403,53 +1411,20 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
     const [eh, em] = expectedTime.split(':').map(Number);
     const expectedMinutes = eh * 60 + em;
 
-    // 2. Não exibir alerta de antecipação para 'Retorno Almoço' (apenas alerta de atraso após a tolerância)
-    if (tipo === 'Retorno Almoço') {
+    if (tipo === 'Entrada' || tipo === 'Retorno Almoço') {
+      // Justificar apenas atrasos (chegar tarde)
       return currentMinutes > (expectedMinutes + tolDepois);
     }
 
-    return currentMinutes < (expectedMinutes - tolAntes) || currentMinutes > (expectedMinutes + tolDepois);
-  };
-
-  const isTooEarly = (tipo: string, time: Date) => {
-    const currentMinutes = time.getHours() * 60 + time.getMinutes();
-    let expectedTime = '';
-    let tolAntes = 0;
-    if (tipo === 'Entrada') {
-      expectedTime = configPonto.hora_entrada || '08:00';
-      tolAntes = configPonto.tolerancia_entrada_antes ?? 15;
-    } else if (tipo === 'Saída Almoço') {
-      expectedTime = configPonto.hora_inicio_almoco || '12:00';
-      tolAntes = configPonto.tolerancia_inicio_almoco_antes ?? 15;
-    } else if (tipo === 'Retorno Almoço') {
-      expectedTime = configPonto.hora_fim_almoco || '13:00';
-      if (configPonto.duracao_almoco) {
-        const todayStr = new Date(time.getTime() - (time.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-        const saidaAlmoco = pontos.find((p: any) => p.usuario_email === currentUserProfile && p.tipo === 'Saída Almoço' && new Date(p.data_hora).toISOString().startsWith(todayStr));
-        if (saidaAlmoco) {
-          const saidaTime = new Date(saidaAlmoco.data_hora);
-          const expectedReturnMinutes = saidaTime.getHours() * 60 + saidaTime.getMinutes() + Number(configPonto.duracao_almoco);
-          const expectedH = Math.floor(expectedReturnMinutes / 60).toString().padStart(2, '0');
-          const expectedM = (expectedReturnMinutes % 60).toString().padStart(2, '0');
-          expectedTime = `${expectedH}:${expectedM}`;
-        }
-      }
-      tolAntes = configPonto.tolerancia_fim_almoco_antes ?? 15;
-    } else if (tipo === 'Saída') {
-      expectedTime = configPonto.hora_saida || '18:00';
-      tolAntes = configPonto.tolerancia_saida_antes ?? 15;
+    if (tipo === 'Saída') {
+      // Justificar saídas antecipadas (sair cedo) ou atrasos na saída (hora extra)
+      return currentMinutes < (expectedMinutes - tolAntes) || currentMinutes > (expectedMinutes + tolDepois);
     }
-    if (!expectedTime) return false;
-    const [eh, em] = expectedTime.split(':').map(Number);
-    const expectedMinutes = eh * 60 + em;
-    return currentMinutes < (expectedMinutes - tolAntes);
+
+    return false;
   };
 
   const initiatePonto = (tipo: string) => {
-    if (isTooEarly(tipo, new Date())) {
-      alert("Horário ainda não liberado para registro de " + tipo + ".");
-      return;
-    }
     if (isOutsideTolerance(tipo, new Date())) {
       setPendingPonto(tipo);
       setJustificativa('');
@@ -1526,14 +1501,57 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
     }
     setIsProcessing(true);
     try {
-      const { error } = await supabase.from('pontos').delete().eq('id', editingPonto.id);
+      const { data, error } = await supabase.from('pontos').delete().eq('id', editingPonto.id).select();
       if (error) throw error;
+      if (!data || data.length === 0) {
+         throw new Error("Não foi possível excluir no banco de dados. Verifique as permissões (RLS) ou se o registro já foi excluído.");
+      }
       setPontos((prev: any) => prev.filter((p: any) => p.id !== editingPonto.id));
       setEditingPonto(null);
       setConfirmDelete(false);
       alert('Registro excluído com sucesso!');
     } catch (err: any) {
       alert('Erro ao excluir: ' + err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const saveManualPonto = async () => {
+    if (!manualAddData.data || !manualAddData.hora || !manualAddData.justificativa) {
+      alert("Preencha todos os campos obrigatórios (Data, Hora e Justificativa).");
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      const dateObj = new Date(`${manualAddData.data}T${manualAddData.hora}:00`);
+      if (isNaN(dateObj.getTime())) {
+          alert("Data ou hora inválida.");
+          return;
+      }
+      
+      const tipoStr = `${manualAddData.tipo}::justificativa::${manualAddData.justificativa}`;
+      
+      const payload = {
+        usuario_email: manualAddData.usuario,
+        usuario_nome: USER_PROFILES[manualAddData.usuario]?.label || manualAddData.usuario,
+        tipo: tipoStr,
+        data_hora: dateObj.toISOString(),
+        created_at: new Date().toISOString(),
+        latitude: null,
+        longitude: null,
+        localizacao_valida: false
+      };
+      const { data, error } = await supabase.from('pontos').insert(payload).select();
+      if (error) throw error;
+      if (data && data.length > 0) {
+        setPontos([data[0], ...pontos]);
+      }
+      setShowManualAdd(false);
+      setManualAddData({ ...manualAddData, justificativa: '' });
+      alert('Ponto manual registrado com sucesso!');
+    } catch (err: any) {
+      alert('Erro ao registrar ponto manual: ' + err.message);
     } finally {
       setIsProcessing(false);
     }
@@ -1560,7 +1578,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
 
   const meusPontos = pontos.filter((p: any) => p.usuario_email === currentUserProfile).sort((a: any, b: any) => new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime());
   const todosPontos = [...pontos].sort((a: any, b: any) => new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime());
-  const displayPontos = (USER_PROFILES[currentUserProfile]?.role === 'administrator' ? todosPontos : meusPontos).filter((p: any) => p.tipo !== 'CONFIG' && new Date(p.data_hora) >= new Date('2026-07-20T00:00:00Z'));
+  const displayPontos = (USER_PROFILES[currentUserProfile]?.role === 'administrator' ? todosPontos : meusPontos).filter((p: any) => p.tipo !== 'CONFIG' && new Date(p.data_hora) >= new Date('2026-07-23T00:00:00-03:00'));
 
   const timeToMin = (t: any) => {
     if (!t) return null;
@@ -1857,7 +1875,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
       </div>
       )}
       
-      <div className="flex justify-center mt-8 gap-4">
+      <div className="flex justify-center mt-8 gap-4 flex-wrap">
         <Button onClick={() => setShowHistory(true)} variant="secondary" className="py-4 px-8 text-sm font-black tracking-widest bg-slate-800 hover:bg-slate-700 text-white">
           VER HISTÓRICO DE PONTO
         </Button>
@@ -1866,9 +1884,109 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
           <Download size={16} className="mr-2" /> RELATÓRIO PDF
         </Button>
         )}
+        {USER_PROFILES[currentUserProfile]?.role === 'administrator' && (
+        <Button onClick={() => setShowManualAdd(true)} variant="secondary" className="py-4 px-8 text-sm font-black tracking-widest bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/20">
+          REGISTRAR MANUALMENTE
+        </Button>
+        )}
       </div>
 
-            {/* MODAL DE EDIÇÃO DE PONTO */}
+      {/* MODAL DE ADIÇÃO MANUAL DE PONTO */}
+      {showManualAdd && USER_PROFILES[currentUserProfile]?.role === 'administrator' && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-md overflow-hidden flex flex-col shadow-2xl p-6"
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h4 className="text-xl font-bold text-white uppercase flex items-center gap-2">Adicionar Ponto Manual</h4>
+              <button onClick={() => setShowManualAdd(false)} className="text-slate-400 hover:text-white">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="space-y-4">
+               <div>
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2">Funcionário</label>
+                  <select value={manualAddData.usuario} onChange={(e) => setManualAddData({...manualAddData, usuario: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:outline-none focus:border-emerald-500 font-medium appearance-none">
+                     {Object.entries(USER_PROFILES).map(([email, p]: any) => (
+                        <option key={email} value={email}>{p.label}</option>
+                     ))}
+                  </select>
+               </div>
+               <div>
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2">Tipo de Ponto</label>
+                  <select value={manualAddData.tipo} onChange={(e) => setManualAddData({...manualAddData, tipo: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:outline-none focus:border-emerald-500 font-medium appearance-none">
+                     <option value="Entrada">Entrada</option>
+                     <option value="Saída Almoço">Saída Almoço</option>
+                     <option value="Retorno Almoço">Retorno Almoço</option>
+                     <option value="Saída">Saída</option>
+                  </select>
+               </div>
+               <div className="grid grid-cols-2 gap-4">
+                 <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2">Data</label>
+                    <input type="date" value={manualAddData.data} onChange={(e) => setManualAddData({...manualAddData, data: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:outline-none focus:border-emerald-500 font-medium" />
+                 </div>
+                 <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2">Horário</label>
+                    <input type="time" value={manualAddData.hora} onChange={(e) => setManualAddData({...manualAddData, hora: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:outline-none focus:border-emerald-500 font-medium" />
+                 </div>
+               </div>
+               <div>
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2">Justificativa (Obrigatória)</label>
+                  <textarea 
+                    value={manualAddData.justificativa} 
+                    onChange={(e) => setManualAddData({...manualAddData, justificativa: e.target.value})} 
+                    placeholder="Ex: Esqueceu de registrar..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:outline-none focus:border-emerald-500 font-medium h-24 resize-none" 
+                  />
+               </div>
+               <div className="pt-4">
+                  <Button onClick={saveManualPonto} disabled={isProcessing} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold tracking-widest text-xs py-4">
+                     {isProcessing ? 'SALVANDO...' : 'REGISTRAR PONTO MANUAL'}
+                  </Button>
+               </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+            {/* MODAL DE JUSTIFICATIVA (ATRASO/ANTECIPAÇÃO) */}
+      {pendingPonto && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-sm overflow-hidden flex flex-col shadow-2xl p-6"
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h4 className="text-xl font-bold text-white uppercase flex items-center gap-2">Justificativa Necessária</h4>
+              <button onClick={() => setPendingPonto(null)} className="text-slate-400 hover:text-white">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <p className="text-sm text-slate-400">O registro de <span className="font-bold text-white">{pendingPonto}</span> está fora do horário normal. Por favor, justifique o motivo.</p>
+              <div>
+                <textarea 
+                  value={justificativa} 
+                  onChange={(e) => setJustificativa(e.target.value)} 
+                  placeholder="Ex: Trânsito, Consulta Médica..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:outline-none focus:border-emerald-500 font-medium h-24 resize-none" 
+                />
+              </div>
+              <div className="flex gap-2 pt-4">
+                <Button onClick={confirmPontoWithJustificativa} disabled={isProcessing} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold tracking-widest text-xs py-3">
+                  {isProcessing ? 'SALVANDO...' : 'CONFIRMAR'}
+                </Button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* MODAL DE EDIÇÃO DE PONTO */}
       {editingPonto && USER_PROFILES[currentUserProfile]?.role === 'administrator' && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <motion.div 
@@ -1977,19 +2095,19 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
 
       {/* MODAL DE CONFIGURAÇÕES */}
       {showSettings && USER_PROFILES[currentUserProfile]?.role === 'administrator' && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-sm">
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto flex flex-col shadow-2xl p-6"
+            className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
           >
-            <div className="flex justify-between items-center mb-6">
+            <div className="p-6 border-b border-slate-800 flex-shrink-0 flex justify-between items-center">
               <h4 className="text-xl font-bold text-white uppercase flex items-center gap-2"><Settings size={20} /> Configurações de Horários</h4>
               <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-white">
                 <X size={20} />
               </button>
             </div>
-            
+            <div className="p-6 overflow-y-auto flex-1">
             <div className="mb-6 bg-slate-800/60 p-4 rounded-xl border border-slate-700/50">
                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2">Configurar Para</label>
                <select 
@@ -2092,7 +2210,8 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
 
             </div>
 
-            <div className="mt-8">
+            </div>
+            <div className="p-6 border-t border-slate-800 flex-shrink-0 bg-slate-900">
               <Button onClick={saveSettings} disabled={isProcessing} className="bg-emerald-600 hover:bg-emerald-500 text-white w-full font-bold tracking-widest text-xs py-4">
                 {isProcessing ? '...' : 'SALVAR CONFIGURAÇÕES'}
               </Button>
@@ -2202,6 +2321,9 @@ export default function App() {
       return false;
     };
     const canExportReport = (reportType: string) => {
+      if (reportType === 'finance') {
+        return currentUserProfile === 'vagnergestor360@gmail.com' || currentUserProfile === 'nubia360admin@gmail.com';
+      }
       if (p?.reports === 'full') return true;
       if (reportType === 'tasks' && p?.allowed_tabs?.includes('tasks')) return true;
       return false;
@@ -2327,7 +2449,9 @@ export default function App() {
           .order('created_at', { ascending: false });
         
         if (error) {
-          console.error(`[${timestamp}] ❌ Erro em ${name} (Status ${status}):`, error);
+          if (status !== 0 && !error?.message?.includes('Failed to fetch')) {
+            console.error(`[${timestamp}] ❌ Erro em ${name} (Status ${status}):`, error);
+          }
           
           // Tratar JWT Expirado (401 / PGRST303)
           if (status === 401 || error.code === 'PGRST303') {
@@ -2342,8 +2466,13 @@ export default function App() {
             return;
           }
 
-          if (error.message.includes('Failed to fetch')) {
-            setConnectionError("Erro Crítico de Rede: Verifique sua conexão ou se o Supabase está online.");
+          if (status === 0 || error?.message?.includes('Failed to fetch')) {
+            console.warn(`[${timestamp}] ⚠️ Erro de rede (Status 0) ao acessar '${name}'. Isso pode ocorrer se o projeto Supabase estiver pausado, se você estiver offline ou devido a um AdBlocker.`);
+            if (!connectionError) {
+              setConnectionError("Erro de Rede: Não foi possível conectar ao banco de dados. O projeto pode estar pausado ou a conexão foi bloqueada.");
+            }
+            setter([]); // Evita travar a UI em loading eterno
+            continue;
           } else if (error.code === 'PGRST204') {
             setConnectionError(`Erro de Cache/Esquema em '${name}': O banco de dados mudou. Atualize a página ou verifique as colunas.`);
           } else if (error.code === '42P01' || error.code === 'PGRST205') {
@@ -2442,7 +2571,11 @@ export default function App() {
           if (connectionError && !collectionName) setConnectionError(null);
         }
       } catch (e: any) {
-        console.error(`[${timestamp}] 💥 Falha fatal em ${name}:`, e);
+        if (e?.message?.includes('Failed to fetch')) {
+          console.warn(`[${timestamp}] ⚠️ Falha de rede em ${name}:`, e);
+        } else {
+          console.error(`[${timestamp}] 💥 Falha fatal em ${name}:`, e);
+        }
       }
     }
   };
@@ -2686,43 +2819,78 @@ export default function App() {
       let fTasks = tasks;
       if (start) fTasks = fTasks.filter((t:any) => t.data >= start);
       if (end) fTasks = fTasks.filter((t:any) => t.data <= end);
-      if (userFilter && userFilter !== 'all') {
-        fTasks = fTasks.filter((t:any) => t.atribuido_a === userFilter);
-      }
       
-      const done = fTasks.filter((t:any) => t.status === 'done').length;
-      const pending = fTasks.filter((t:any) => t.status === 'pending').length;
-      const total = fTasks.length;
+      const usersToProcess = (userFilter && userFilter !== 'all') 
+         ? [userFilter] 
+         : RESPONSAVEIS.map((r: any) => r.value).filter(Boolean);
 
-      const tableData = fTasks.map((t: any) => [
-        t.titulo || 'Sem título',
-        t.atribuido_a || '-',
-        t.prioridade === 'high' ? 'Alta' : t.prioridade === 'low' ? 'Baixa' : 'Média',
-        new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'}),
-        t.status === 'done' ? 'Concluída' : 'Pendente'
-      ]);
+      const userPages: any[] = [];
+      let overallTotal = 0, overallDone = 0, overallPending = 0, overallInProgress = 0;
+
+      usersToProcess.forEach(u => {
+          const userTasks = fTasks.filter((t:any) => t.atribuido_a === u);
+          if (userTasks.length > 0) {
+              const uDone = userTasks.filter((t:any) => t.status === 'done').length;
+              const uPending = userTasks.filter((t:any) => t.status === 'pending').length;
+              const uInProgress = userTasks.filter((t:any) => t.status === 'in_progress').length;
+              const uTotal = userTasks.length;
+              const uPercent = uTotal > 0 ? Math.round((uDone / uTotal) * 100) : 0;
+              
+              overallTotal += uTotal;
+              overallDone += uDone;
+              overallPending += uPending;
+              overallInProgress += uInProgress;
+              
+              const tableData = userTasks.map((t: any) => [
+                t.titulo || 'Sem título',
+                t.prioridade === 'high' ? 'Alta' : t.prioridade === 'low' ? 'Baixa' : 'Média',
+                new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'}),
+                t.status === 'done' ? 'Concluída' : t.status === 'in_progress' ? 'Em Andamento' : 'Pendente'
+              ]);
+
+              const userName = USER_PROFILES[u]?.label || u;
+
+              userPages.push({
+                 userName: userName,
+                 cards: [
+                    { label: 'Total', value: uTotal, color: [37, 99, 235] },
+                    { label: 'Concluídas', value: uDone, color: [34, 197, 94] },
+                    { label: 'Pendentes', value: uPending, color: [239, 68, 68] },
+                    { label: 'Em Andamento', value: uInProgress, color: [245, 158, 11] }
+                 ],
+                 progressBar: { label: `Progresso de ${userName}`, percent: uPercent },
+                 mainTable: {
+                    title: 'Lista de Tarefas',
+                    head: [['Título', 'Prioridade', 'Data', 'Status']],
+                    body: tableData,
+                    didParseCell: function(data: any) {
+                        if (data.section === 'body' && data.column.index === 3) {
+                            if (data.cell.raw === 'Concluída') data.cell.styles.textColor = [34, 197, 94];
+                            else if (data.cell.raw === 'Em Andamento') data.cell.styles.textColor = [245, 158, 11];
+                            else data.cell.styles.textColor = [239, 68, 68];
+                        }
+                        if (data.section === 'body' && data.column.index === 1) {
+                            if (data.cell.raw === 'Alta') data.cell.styles.textColor = [239, 68, 68];
+                        }
+                    }
+                 }
+              });
+          }
+      });
+      
+      const overallPercent = overallTotal > 0 ? Math.round((overallDone / overallTotal) * 100) : 0;
 
       generateExecutiveReport({
         title: 'Relatório Executivo de Tarefas',
         period: periodStr,
         cards: [
-          { label: 'Total de Tarefas', value: total, color: [37, 99, 235] },
-          { label: 'Concluídas', value: done, color: [34, 197, 94] },
-          { label: 'Pendentes', value: pending, color: [239, 68, 68] }
+          { label: 'Total Geral', value: overallTotal, color: [37, 99, 235] },
+          { label: 'Concluídas', value: overallDone, color: [34, 197, 94] },
+          { label: 'Pendentes', value: overallPending, color: [239, 68, 68] },
+          { label: 'Em Andamento', value: overallInProgress, color: [245, 158, 11] }
         ],
-        mainTable: {
-          title: 'Lista de Tarefas',
-          head: [['Título', 'Responsável', 'Prioridade', 'Data', 'Status']],
-          body: tableData,
-          didParseCell: function(data: any) {
-              if (data.section === 'body' && data.column.index === 4) {
-                  data.cell.styles.textColor = data.cell.raw === 'Concluída' ? [34, 197, 94] : [245, 158, 11];
-              }
-              if (data.section === 'body' && data.column.index === 2) {
-                  if (data.cell.raw === 'Alta') data.cell.styles.textColor = [239, 68, 68];
-              }
-          }
-        },
+        progressBar: { label: 'Progresso Global', percent: overallPercent },
+        userPages: userPages,
         filename: `tarefas_${new Date().toISOString().split('T')[0]}.pdf`
       });
     } else if (type === 'all') {
@@ -2893,6 +3061,25 @@ export default function App() {
   const handleSave = async (e?: React.FormEvent | string) => {
     if (e && typeof e !== 'string' && 'preventDefault' in e) e.preventDefault();
     if (!user) return;
+
+    // Basic Validation
+    if (activeTab === 'clients' && (!formData.nome)) {
+      alert('Nome é obrigatório.');
+      return;
+    }
+    if (activeTab === 'financial_control' && (!formData.valor || !formData.descricao)) {
+      alert('Valor e Descrição são obrigatórios.');
+      return;
+    }
+    if (activeTab === 'agenda' && (!formData.data)) {
+      alert('Data é obrigatória.');
+      return;
+    }
+    if (activeTab === 'tasks' && (!formData.descricao && !formData.titulo && !formData.nome)) {
+      alert('Descrição/Título é obrigatório.');
+      return;
+    }
+
     setIsProcessing(true);
     try {
       const collectionName: any = {
@@ -2924,6 +3111,7 @@ export default function App() {
       // JSON Trick para Clientes + Serviços
       if (collectionName === 'clients' || collectionName === 'servicos') {
         const parsedEmail = {
+          ...formData, // keep all existing arbitrary keys from formData in the JSON!
           email: payload.email || '',
           servico: payload.servico || '',
           valor: payload.valor || '',
@@ -2948,29 +3136,28 @@ export default function App() {
           data_final: payload.data_final || '',
           valor_sugerido: payload.valor_sugerido || ''
         };
+        
+        // Remove explicitly mapped database columns from the JSON payload so they aren't duplicated unnecessarily
+        delete parsedEmail.nome;
+        delete parsedEmail.telefone;
+        delete parsedEmail.created_at;
+        delete parsedEmail.updated_at;
+        delete parsedEmail.responsavel;
+        delete parsedEmail.editor_nome;
+        delete parsedEmail.user_id;
+        delete parsedEmail.id;
+        delete parsedEmail._raw_email;
+        delete parsedEmail.is_diaria;
+
         payload.email = JSON.stringify(parsedEmail);
-        delete payload.dividido;
-        delete payload.valor_servico;
-        delete payload.data_inicial;
-        delete payload.data_final;
-        delete payload.valor_sugerido;
-        delete payload.servico;
-        delete payload.valor;
-        delete payload.rede_social;
-        delete payload.status;
-        delete payload.cnpj;
-        delete payload.email_secundario;
-        delete payload.telefone_secundario;
-        delete payload.empresa;
-        delete payload.whatsapp;
-        delete payload.endereco;
-        delete payload.cidade;
-        delete payload.estado;
-        delete payload.origem;
-        delete payload.responsavel_atendimento;
-        delete payload.prioridade;
-        delete payload.anotacoes;
-        delete payload.timeline;
+        
+        // ONLY keep actual database columns in the root payload
+        const allowedColumns = ['id', 'nome', 'telefone', 'email', 'created_at', 'updated_at', 'responsavel', 'editor_nome', 'user_id'];
+        Object.keys(payload).forEach(key => {
+          if (!allowedColumns.includes(key)) {
+             delete payload[key];
+          }
+        });
       }
 
       // Limpeza e mapeamento específico para Transações
@@ -2980,12 +3167,10 @@ export default function App() {
         const forma = payload.forma_pagamento || 'PIX';
         payload.descricao = JSON.stringify({ descricao: desc, categoria: cat, forma_pagamento: forma });
         
-        delete payload.categoria;
-        delete payload.titulo;
-        delete payload.localizacao;
-        delete payload.hora;
-        delete payload._raw_descricao;
-        delete payload.forma_pagamento;
+        const allowedColumns = ['id', 'type', 'descricao', 'valor', 'data', 'status', 'responsavel', 'editor_nome', 'user_id', 'created_at', 'updated_at'];
+        Object.keys(payload).forEach(key => {
+          if (!allowedColumns.includes(key)) delete payload[key];
+        });
       }
 
       // Limpeza específica para Agendamentos
@@ -2997,13 +3182,11 @@ export default function App() {
         const hora = payload.hora || '';
         
         payload.titulo = JSON.stringify({ status, local, titulo_evento, desc, hora });
-        delete payload.status;
-        delete payload.localizacao;
-        delete payload.titulo_evento;
-        delete payload.descricao;
-        delete payload.hora;
-        delete payload._raw_titulo;
-        delete payload.categoria;
+        
+        const allowedColumns = ['id', 'titulo', 'data', 'responsavel', 'editor_nome', 'user_id', 'created_at', 'updated_at'];
+        Object.keys(payload).forEach(key => {
+          if (!allowedColumns.includes(key)) delete payload[key];
+        });
       }
 
       // Limpeza específica para Tarefas
@@ -3012,9 +3195,11 @@ export default function App() {
         if (!payload.titulo && payload.descricao) {
           payload.titulo = payload.descricao.slice(0, 80);
         }
-        delete payload.categoria;
-        delete payload.localizacao;
-        delete payload.hora;
+        
+        const allowedColumns = ['id', 'titulo', 'descricao', 'status', 'data', 'responsavel', 'editor_nome', 'user_id', 'created_at', 'updated_at', 'prioridade', 'atribuido_a', 'is_recurring'];
+        Object.keys(payload).forEach(key => {
+          if (!allowedColumns.includes(key)) delete payload[key];
+        });
       }
 
       if (payload.data === '') payload.data = null;
@@ -3062,7 +3247,8 @@ export default function App() {
   };
 
   const handleToggleStatus = async (transaction: any) => {
-    if (!user || !permissions.canEdit('financial_control')) return;
+    if (!user || !permissions.canEdit('financial_control') || isProcessing) return;
+    setIsProcessing(true);
     try {
       const newStatus = transaction.status === 'received' ? 'pending' : 'received';
       const { error, status } = await supabase.from('transactions').update({ 
@@ -3079,13 +3265,17 @@ export default function App() {
         throw error;
       }
       fetchCollections('transactions');
-    } catch (err) {
+    } catch (err: any) {
       console.error("Erro ao atualizar status:", err);
+      alert("Erro ao atualizar status: " + err.message);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleSetAgendaStatus = async (item: any, newStatus: string) => {
-    if (!user || !permissions.canEdit('agenda')) return;
+    if (!user || !permissions.canEdit('agenda') || isProcessing) return;
+    setIsProcessing(true);
     try {
       const updatedTitulo = JSON.stringify({
          status: newStatus,
@@ -3108,8 +3298,11 @@ export default function App() {
         throw error;
       }
       fetchCollections('appointments');
-    } catch (err) {
+    } catch (err: any) {
       console.error("Erro ao atualizar status:", err);
+      alert("Erro ao atualizar status: " + err.message);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -3194,7 +3387,8 @@ export default function App() {
             <div className="space-y-4">
               <Input 
                 label="Endereço de E-mail"
-                type="email"
+                type="text"
+                autoComplete="email"
                 placeholder="seu@email.com"
                 value={authEmail}
                 onChange={(e: any) => setAuthEmail(e.target.value)}
@@ -3846,7 +4040,7 @@ export default function App() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[60] flex flex-col p-6 bg-slate-950/90 backdrop-blur-xl shadow-2xl overflow-y-auto"
+                className="fixed inset-0 z-[60] flex flex-col p-6 bg-slate-950/90 backdrop-blur-xl shadow-2xl"
               >
                 <div className="w-full max-w-6xl mx-auto flex flex-col flex-1 relative">
                   <div className="flex justify-between items-center mb-6">
@@ -3936,9 +4130,10 @@ export default function App() {
                   <h3 className="text-xl font-bold text-white mb-2">Confirmar Exclusão</h3>
                   <p className="text-sm text-slate-400 mb-6">Tem certeza que deseja excluir este item? Esta ação não pode ser desfeita.</p>
                   <div className="flex gap-3">
-                    <Button variant="secondary" className="flex-1" onClick={() => setItemToDelete(null)}>Cancelar</Button>
-                    <Button variant="danger" className="flex-1" onClick={async () => {
+                    <Button variant="secondary" className="flex-1" onClick={() => setItemToDelete(null)} disabled={isProcessing}>Cancelar</Button>
+                    <Button variant="danger" className="flex-1" disabled={isProcessing} onClick={async () => {
                       if (!itemToDelete) return;
+                      setIsProcessing(true);
                       const { id, type, collName } = itemToDelete;
                       const coll = collName || (type === 'transaction' || type === 'transactions' ? 'transactions' : (type === 'client' ? 'clients' : (type === 'appointment' ? 'appointments' : 'tasks')));
                       try {
@@ -3949,8 +4144,9 @@ export default function App() {
                         alert('Erro ao excluir: ' + err.message);
                       } finally {
                         setItemToDelete(null);
+                        setIsProcessing(false);
                       }
-                    }}>Excluir</Button>
+                    }}>{isProcessing ? 'Excluindo...' : 'Excluir'}</Button>
                   </div>
                 </div>
               </motion.div>
@@ -3964,10 +4160,11 @@ export default function App() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto"
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-sm"
               >
-                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl relative">
-                  <div className="flex justify-between items-center mb-6">
+                <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[95vh] sm:max-h-[90vh] overflow-hidden relative">
+                  <div className="p-6 md:p-8 flex-shrink-0 border-b border-slate-800">
+                  <div className="flex justify-between items-center">
                     <h2 className="text-2xl font-black text-white tracking-tighter">
                       {editingId ? 'Editar Registro' : 'Novo Registro'}
                     </h2>
@@ -3975,8 +4172,9 @@ export default function App() {
                       <X size={24} />
                     </button>
                   </div>
+                  </div>
                   
-                  <div className="space-y-4">
+                  <div className="p-6 md:p-8 overflow-y-auto flex-1 space-y-4">
                     {activeTab === 'clients' && (
                       <>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -4002,7 +4200,7 @@ export default function App() {
                            </div>
                            <div className="space-y-2">
                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Email</label>
-                             <input type="email" placeholder="Ex: contato@empresa.com" value={formData.email || ''} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                             <input type="text" autoComplete="off" data-lpignore="true" data-1p-ignore="true" placeholder="Ex: contato@empresa.com" value={formData.email || ''} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
                            </div>
                            <div className="space-y-2">
                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Origem do Lead</label>
@@ -4211,9 +4409,11 @@ export default function App() {
                         </div>
                       </>
                     )}
-                    <div className="pt-4 flex gap-3">
-                      <Button variant="secondary" className="flex-1" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
-                      <Button variant="primary" className="flex-1" onClick={() => handleSave(activeTab)}>Salvar</Button>
+                  </div>
+                  <div className="p-6 md:p-8 flex-shrink-0 border-t border-slate-800 bg-slate-900 rounded-b-3xl">
+                    <div className="flex gap-3">
+                      <Button variant="secondary" className="flex-1" onClick={() => setIsModalOpen(false)} disabled={isProcessing}>Cancelar</Button>
+                      <Button variant="primary" className="flex-1" onClick={() => handleSave(activeTab)} disabled={isProcessing}>{isProcessing ? 'Salvando...' : 'Salvar'}</Button>
                     </div>
                   </div>
                 </div>
@@ -4229,15 +4429,15 @@ export default function App() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-sm"
+              className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-sm flex flex-col max-h-[95vh] sm:max-h-[90vh] overflow-hidden"
             >
-              <div className="flex justify-between items-center mb-6">
+              <div className="p-6 border-b border-slate-800/60 flex-shrink-0 flex justify-between items-center">
                 <h3 className="text-lg font-bold text-white flex items-center gap-2"><Download size={20} className="text-emerald-500" /> Gerar Relatório</h3>
                 <button onClick={() => setIsReportModalOpen(false)} className="text-slate-500 hover:text-white transition-colors">
                   <X size={20} />
                 </button>
               </div>
-              <div className="space-y-4 mb-6">
+              <div className="p-6 space-y-4 overflow-y-auto flex-1">
                 {(reportType === 'tasks' || reportType === 'productivity') && USER_PROFILES[currentUserProfile]?.role === 'administrator' && (
                   <div>
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Usuário</label>
@@ -4272,6 +4472,7 @@ export default function App() {
                   />
                 </div>
               </div>
+              <div className="p-6 border-t border-slate-800/60 flex-shrink-0 bg-slate-900">
               <Button
                 onClick={() => {
                   const finalUser = USER_PROFILES[currentUserProfile]?.role === 'administrator' ? reportModalUser : currentUserProfile;
@@ -4282,6 +4483,7 @@ export default function App() {
               >
                 Baixar PDF
               </Button>
+              </div>
             </motion.div>
           </motion.div>
         )}
