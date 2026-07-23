@@ -472,10 +472,10 @@ const ListView = ({ title, data, columns, collName, onAdd, permissions, handleTo
       </div>
     </div>
 
-    {/* Versão Desktop: Tabela Modernizada */}
-    <Card className="hidden md:block p-0 overflow-hidden bg-slate-950/20 border-slate-800/60 rounded-[3rem] shadow-2xl backdrop-blur-sm">
+    {/* Versão Desktop e Mobile: Tabela Modernizada */}
+    <Card className="p-0 overflow-hidden bg-slate-950/20 border-slate-800/60 rounded-[3rem] shadow-2xl backdrop-blur-sm">
       <div className="overflow-x-auto scrollbar-hide">
-        <table className="w-full text-left border-separate border-spacing-0">
+        <table className="w-full text-left border-separate border-spacing-0 min-w-[800px]">
           <thead>
             <tr className="bg-slate-950">
               {columns.map((col: any) => <th key={col.key} className="px-10 py-8 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800/50">{col.label}</th>)}
@@ -539,147 +539,6 @@ const ListView = ({ title, data, columns, collName, onAdd, permissions, handleTo
       </div>
     </Card>
 
-    <div className="md:hidden space-y-4">
-      {data.length > 0 ? data.map((item: any, idx: number) => (
-        <Card 
-          key={item.id || idx} 
-          onClick={() => {
-            if (collName === 'tasks' || collName === 'appointments') {
-              setFormData(item);
-              setEditingId(item.id);
-              setIsModalOpen(true);
-            }
-          }}
-          className={`p-6 bg-slate-950/50 border-slate-800 rounded-3xl group ${(collName === 'tasks' || collName === 'appointments') ? 'cursor-pointer' : ''}`}
-        >
-          <div className="flex justify-between items-start mb-5">
-            <div className="flex flex-col gap-1.5">
-               <div className="flex items-center gap-2">
-                 <span className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">{item.responsavel || 'Sistema'}</span>
-                 {collName === 'tasks' && (
-                   <div className={`w-2 h-2 rounded-full ${
-                     item.prioridade === 'high' ? 'bg-red-500 animate-pulse' : 
-                     item.prioridade === 'low' ? 'bg-emerald-500' : 'bg-amber-500'
-                   }`} />
-                 )}
-               </div>
-               <span className="text-[9px] text-slate-600 font-bold uppercase tracking-tighter">
-                 {item.data ? new Date(item.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : '--/--/----'}
-                 {item.hora ? ` • ${item.hora}` : ''}
-               </span>
-            </div>
-          </div>
-          
-          <div className="space-y-4">
-            <div className="flex flex-col">
-              <h4 className="text-white font-black uppercase text-sm tracking-tight leading-tight line-clamp-2">
-                {collName === 'tasks' ? (item.descricao || item.titulo || item.nome) : (item.nome || item.titulo || item.servico || 'Registro')}
-              </h4>
-              {(collName === 'transactions' || collName === 'appointments') && item.descricao && (
-                <p className="text-[10px] text-slate-500 font-medium italic mt-2 border-l-2 border-slate-800 pl-3 line-clamp-2">
-                  {item.descricao}
-                </p>
-              )}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-3 pt-4 border-t border-slate-900">
-               {item.atribuido_a && (
-                 <div className="flex items-center gap-2">
-                   <div className="w-5 h-5 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-500">
-                     <User size={10} />
-                   </div>
-                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{USER_PROFILES[item.atribuido_a]?.label || item.atribuido_a}</span>
-                 </div>
-               )}
-               
-               {item.valor !== undefined && columns.some((c: any) => c.key === 'valor') && (
-                 <div className="flex items-center gap-2 text-xs font-mono">
-                   <div className={`w-5 h-5 rounded-lg flex items-center justify-center ${item.type === 'income' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
-                     <DollarSign size={10} />
-                   </div>
-                   <span className={`font-black tracking-tight ${item.type === 'income' ? 'text-emerald-500' : 'text-red-500'}`}>
-                     {Number(item.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                   </span>
-                 </div>
-               )}
-            </div>
-          </div>
-
-          {/* Action buttons centered at the bottom */}
-          <div className="flex justify-center items-center gap-4 mt-6 pt-4 border-t border-slate-800/60">
-            {collName === 'tasks' && permissions.canEdit('tasks') && (
-               <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const newStatus = item.status === 'done' ? 'pending' : 'done';
-                  supabase.from('tasks').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', item.id).then(() => fetchCollections('tasks'));
-                }}
-                className={`flex-1 py-3 flex justify-center items-center rounded-xl border transition-all ${
-                  item.status === 'done' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-500' : 'bg-slate-950 border-slate-800 text-slate-600'
-                }`}
-               >
-                 {item.status === 'done' ? <CheckCircle size={20} /> : <div className="w-5 h-5 border-2 border-slate-700 rounded-sm" />}
-               </button>
-            )}
-            {collName === 'appointments' && permissions.canEdit('agenda') && (
-              <>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); handleSetAgendaStatus && handleSetAgendaStatus(item, item.status === 'Concluído' ? 'Pendente' : 'Concluído'); }} 
-                  className={`flex-1 py-3 flex justify-center items-center rounded-xl border transition-all ${item.status === 'Concluído' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-500' : 'bg-slate-950 border-slate-800 text-slate-600'}`}
-                >
-                  <Check size={20} />
-                </button>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); handleSetAgendaStatus && handleSetAgendaStatus(item, item.status === 'Cancelado' ? 'Pendente' : 'Cancelado'); }} 
-                  className={`flex-1 py-3 flex justify-center items-center rounded-xl border transition-all ${item.status === 'Cancelado' ? 'bg-red-500/20 border-red-500 text-red-500' : 'bg-slate-950 border-slate-800 text-slate-600'}`}
-                >
-                  <X size={20} />
-                </button>
-              </>
-            )}
-            {collName === 'transactions' && item.type === 'income' && permissions.canEdit('financial_control') && (
-              <button 
-                onClick={(e) => { e.stopPropagation(); handleToggleStatus(item); }} 
-                className={`flex-1 py-3 flex justify-center items-center rounded-xl border transition-all ${item.status === 'received' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-500' : 'bg-slate-950 border-slate-800 text-slate-600'}`}
-              >
-                <Check size={20} />
-              </button>
-            )}
-            {permissions.canEdit(collName === 'transactions' ? 'financial_control' : collName) && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setEditingId(item.id);
-                  setFormData(item);
-                  setIsModalOpen(true);
-                }}
-                className={`py-3 px-6 bg-slate-900 text-slate-400 rounded-xl border border-slate-800 active:bg-slate-800 ${collName === 'appointments' ? '' : 'flex-1'} flex justify-center items-center`}
-              >
-                <Edit3 size={20} />
-              </button>
-            )}
-          </div>
-
-          <div className="mt-5 flex justify-between items-center bg-slate-900/30 -mx-6 -mb-6 p-4 rounded-b-3xl border-t border-slate-900">
-            <div>
-              {isSystemAdmin && item.editor_nome && (
-                <span className="text-[8px] text-slate-700 font-black uppercase tracking-tighter">Ref: {item.editor_nome}</span>
-              )}
-            </div>
-            {permissions.canDelete(collName === 'transactions' ? 'financial_control' : collName) && (
-              <button 
-                onClick={(e) => { e.stopPropagation(); setItemToDelete({ id: item.id, collName }); }} 
-                className="text-[9px] text-red-500/50 font-black uppercase tracking-widest hover:text-red-500 transition-all flex items-center gap-1.5 active:scale-95 px-3 py-1 rounded-lg hover:bg-red-500/10"
-              >
-                 <Trash2 size={12} /> Excluir
-              </button>
-            )}
-          </div>
-        </Card>
-      )) : (
-        <div className="py-20 text-center text-slate-700 text-[10px] font-black uppercase tracking-widest border border-dashed border-slate-800 rounded-3xl">Nenhum registro encontrado</div>
-      )}
-    </div>
   </div>
 );
 
@@ -954,7 +813,7 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
 
         <Card className="border-slate-800 bg-slate-900/50 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
+            <table className="w-full text-sm text-left min-w-[600px]">
               <thead className="bg-slate-950/50 text-xs text-slate-500 uppercase tracking-wider font-bold">
                 <tr>
                   <th className="px-6 py-4">Usuário</th>
@@ -1023,7 +882,7 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
 
         <Card className="border-slate-800 bg-slate-900/50 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
+            <table className="w-full text-sm text-left min-w-[600px]">
               <thead className="bg-slate-950/50 text-xs text-slate-500 uppercase tracking-wider font-bold">
                 <tr>
                   <th className="px-6 py-4">Cliente / Descrição</th>
@@ -1068,7 +927,7 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
         
         <Card className="border-slate-800 bg-slate-900/50 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
+            <table className="w-full text-sm text-left min-w-[600px]">
               <thead className="bg-slate-950/50 text-xs text-slate-500 uppercase tracking-wider font-bold">
                 <tr>
                   <th className="px-6 py-4">Data/Hora</th>
@@ -1131,7 +990,7 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
 
         <Card className="border-slate-800 bg-slate-900/50 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
+            <table className="w-full text-sm text-left min-w-[600px]">
               <thead className="bg-slate-950/50 text-xs text-slate-500 uppercase tracking-wider font-bold">
                 <tr>
                   <th className="px-6 py-4">Nome</th>
@@ -2037,7 +1896,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
                 <div key={userName} className="bg-slate-950 p-6 rounded-2xl border border-slate-800/60">
                    <h5 className="text-lg font-black text-white uppercase tracking-wider mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">{userName}</h5>
                    <div className="overflow-x-auto">
-                     <table className="w-full text-left text-sm text-slate-400">
+                     <table className="w-full text-left text-sm text-slate-400 min-w-[600px]">
                        <thead className="text-[10px] uppercase bg-slate-900 text-slate-500">
                          <tr>
                            <th className="px-4 py-3 font-black tracking-widest rounded-tl-lg">Data</th>
@@ -2647,7 +2506,7 @@ export default function App() {
       if (end) filtered = filtered.filter((c:any) => (c.created_at || '').substring(0,10) <= end);
 
       const activeClientsCount = filtered.filter((c: any) => c.status === 'Cliente Ativo').length;
-      const leadsCount = filtered.filter((c: any) => ['Novo Lead', 'Primeiro Contato', 'Qualificado'].includes(c.status || 'Novo Lead')).length;
+      const leadsCount = filtered.filter((c: any) => ['Lead'].includes(c.status || 'Lead')).length;
       const negotiatingCount = filtered.filter((c: any) => ['Proposta Enviada', 'Negociação', 'Aguardando Retorno'].includes(c.status)).length;
       const closedSales = filtered.filter((c: any) => c.status === 'Venda Concluída').length;
       const lostLeads = filtered.filter((c: any) => c.status === 'Lead Perdido').length;
@@ -2668,7 +2527,7 @@ export default function App() {
           c.telefone || c.whatsapp || '-',
           c.email || '-',
           c.origem || '-',
-          c.status || 'Novo Lead',
+          c.status || 'Lead',
           c.prioridade || 'Média',
           c.responsavel_atendimento || c.responsavel || '-'
         ];
@@ -3116,7 +2975,7 @@ export default function App() {
           servico: payload.servico || '',
           valor: payload.valor || '',
           rede_social: payload.rede_social || '',
-          status: payload.status || 'Novo Lead',
+          status: payload.status || 'Lead',
           cnpj: payload.cnpj || '',
           email_secundario: payload.email_secundario || '',
           telefone_secundario: payload.telefone_secundario || '',
@@ -4212,10 +4071,8 @@ export default function App() {
                            </div>
                            <div className="space-y-2">
                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Status (Funil)</label>
-                             <select value={formData.status || 'Novo Lead'} onChange={(e) => setFormData({...formData, status: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50">
-                               <option value="Novo Lead">Novo Lead</option>
-                               <option value="Primeiro Contato">Primeiro Contato</option>
-                               <option value="Qualificado">Qualificado</option>
+                             <select value={formData.status || 'Lead'} onChange={(e) => setFormData({...formData, status: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50">
+                               <option value="Lead">Lead</option>
                                <option value="Proposta Enviada">Proposta Enviada</option>
                                <option value="Negociação">Negociação</option>
                                <option value="Aguardando Retorno">Aguardando Retorno</option>

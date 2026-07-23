@@ -3,9 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, Filter, Phone, Mail, Building2, MapPin, Calendar, Clock, DollarSign, Target, CheckCircle2, XCircle, FileText, Download, Users, User, ArrowRight, Trash2, Edit3, MessageCircle } from 'lucide-react';
 
 const CRM_STATUSES = [
-  "Novo Lead",
-  "Primeiro Contato",
-  "Qualificado",
+  "Lead",
   "Proposta Enviada",
   "Negociação",
   "Aguardando Retorno",
@@ -15,9 +13,7 @@ const CRM_STATUSES = [
 ];
 
 const STATUS_COLORS: Record<string, string> = {
-  "Novo Lead": "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  "Primeiro Contato": "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
-  "Qualificado": "bg-purple-500/10 text-purple-400 border-purple-500/20",
+  "Lead": "bg-blue-500/10 text-blue-400 border-blue-500/20",
   "Proposta Enviada": "bg-pink-500/10 text-pink-400 border-pink-500/20",
   "Negociação": "bg-amber-500/10 text-amber-400 border-amber-500/20",
   "Aguardando Retorno": "bg-orange-500/10 text-orange-400 border-orange-500/20",
@@ -69,11 +65,11 @@ export const CRMView = ({
   // Estatísticas
   const stats = useMemo(() => {
     const active = clients.filter((c: any) => c.status === 'Cliente Ativo').length;
-    const leads = clients.filter((c: any) => ['Novo Lead', 'Primeiro Contato', 'Qualificado'].includes(c.status)).length;
+    const leads = clients.filter((c: any) => ['Lead'].includes(c.status)).length;
     const lost = clients.filter((c: any) => c.status === 'Lead Perdido').length;
     const negotiating = clients.filter((c: any) => ['Proposta Enviada', 'Negociação', 'Aguardando Retorno'].includes(c.status)).length;
     const sales = clients.filter((c: any) => c.status === 'Venda Concluída').length;
-    const newCount = clients.filter((c: any) => c.status === 'Novo Lead').length;
+    const newCount = clients.filter((c: any) => c.status === 'Lead').length;
     
     return { active, leads, lost, negotiating, sales, newCount, total: clients.length };
   }, [clients]);
@@ -189,21 +185,7 @@ export const CRMView = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {[
-          { label: 'Total de Leads', value: stats.leads, color: 'text-indigo-400' },
-          { label: 'Novos Cadastros', value: stats.newCount, color: 'text-blue-400' },
-          { label: 'Negociações', value: stats.negotiating, color: 'text-amber-400' },
-          { label: 'Vendas Concluídas', value: stats.sales, color: 'text-emerald-400' },
-          { label: 'Clientes Ativos', value: stats.active, color: 'text-emerald-400' },
-          { label: 'Leads Perdidos', value: stats.lost, color: 'text-red-400' }
-        ].map((stat, idx) => (
-          <div key={idx} className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col justify-center shadow-lg">
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">{stat.label}</div>
-            <div className={`text-3xl font-black ${stat.color} tracking-tighter`}>{stat.value}</div>
-          </div>
-        ))}
-      </div>
+
 
       <div className="flex relative">
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -222,7 +204,7 @@ export const CRMView = ({
         <div className="flex-1 overflow-y-auto pb-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {CRM_STATUSES.map(status => {
-              const count = filteredClients.filter((c: any) => (c.status || 'Novo Lead') === status).length;
+              const count = filteredClients.filter((c: any) => (c.status || 'Lead') === status).length;
               return (
                 <div 
                   key={status} 
@@ -263,8 +245,8 @@ export const CRMView = ({
                       <div className="text-[10px] text-slate-500 line-clamp-1">{client.email || '--'}</div>
                     </td>
                     <td className="px-4 py-4">
-                       <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md border ${STATUS_COLORS[client.status || 'Novo Lead']}`}>
-                         {client.status || 'Novo Lead'}
+                       <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md border ${STATUS_COLORS[client.status || 'Lead']}`}>
+                         {client.status || 'Lead'}
                        </span>
                     </td>
                     <td className="px-4 py-4">
@@ -333,8 +315,8 @@ export const CRMView = ({
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border ${STATUS_COLORS[selectedClient.status || 'Novo Lead']}`}>
-                      {selectedClient.status || 'Novo Lead'}
+                    <span className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border ${STATUS_COLORS[selectedClient.status || 'Lead']}`}>
+                      {selectedClient.status || 'Lead'}
                     </span>
                     <button onClick={() => setIsClientModalOpen(false)} className="p-2 bg-slate-800 text-slate-400 hover:text-white rounded-xl transition-colors">
                       <XCircle size={24} />
@@ -534,7 +516,7 @@ export const CRMView = ({
                 <div>
                   <h2 className="text-xl font-black text-white">{selectedStatusForModal}</h2>
                   <p className="text-xs text-slate-500 font-bold tracking-widest uppercase mt-1">
-                    {filteredClients.filter((c: any) => (c.status || 'Novo Lead') === selectedStatusForModal).length} Leads
+                    {filteredClients.filter((c: any) => (c.status || 'Lead') === selectedStatusForModal).length} Leads
                   </p>
                 </div>
                 <button 
@@ -547,7 +529,7 @@ export const CRMView = ({
               
               <div className="flex-1 overflow-y-auto p-6 bg-slate-900">
                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                   {filteredClients.filter((c: any) => (c.status || 'Novo Lead') === selectedStatusForModal).map((client: any) => (
+                   {filteredClients.filter((c: any) => (c.status || 'Lead') === selectedStatusForModal).map((client: any) => (
                       <div 
                         key={client.id}
                         onClick={() => {
@@ -577,7 +559,7 @@ export const CRMView = ({
                         </div>
                       </div>
                    ))}
-                   {filteredClients.filter((c: any) => (c.status || 'Novo Lead') === selectedStatusForModal).length === 0 && (
+                   {filteredClients.filter((c: any) => (c.status || 'Lead') === selectedStatusForModal).length === 0 && (
                       <div className="col-span-full py-16 flex flex-col items-center justify-center text-slate-500">
                         <Users size={48} className="opacity-20 mb-4" />
                         <span className="text-sm font-bold tracking-widest uppercase">Nenhum lead neste status</span>

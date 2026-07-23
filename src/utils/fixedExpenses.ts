@@ -5,7 +5,7 @@ export const getFixedExpensesTasks = (tasks: any[]) => {
 export const parseFixedExpense = (task: any) => {
   try {
     const data = JSON.parse(task.descricao);
-    return { ...data, id: task.id, active: task.status !== 'done', created_at: task.created_at };
+    return { ...data, id: task.id, active: task.status !== 'done', created_at: task.created_at, titulo: task.titulo, name: data.name || task.titulo?.replace('[GASTO_FIXO] ', '') };
   } catch(e) {
     return null;
   }

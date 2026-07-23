@@ -118,6 +118,7 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
     const payload: any = {
       titulo: '[GASTO_FIXO] ' + fixedExpenseForm.name,
       descricao: JSON.stringify({
+        name: fixedExpenseForm.name,
         value: fixedExpenseForm.value,
         category: fixedExpenseForm.category,
         day: fixedExpenseForm.day,
@@ -499,7 +500,7 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
           </div>
           <Card className="overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse min-w-[800px]">
                 <thead>
                   <tr className="bg-slate-900 border-b border-slate-800">
                     <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-widest whitespace-nowrap">Despesa</th>
