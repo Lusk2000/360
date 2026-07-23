@@ -153,7 +153,7 @@ export const CRMView = ({
           </h2>
           <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Gestão de Clientes e Negócios</p>
         </div>
-        <div className="flex gap-2 w-full sm:w-auto">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
            {permissions.canExportReport('clients') && (
            <button 
              onClick={() => { setReportType('clients'); setIsReportModalOpen(true); }}
@@ -220,9 +220,9 @@ export const CRMView = ({
           </div>
         </div>
       ) : (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex-1 flex flex-col">
-          <div className="overflow-x-auto flex-1">
-            <table className="w-full text-left text-sm text-slate-400">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex-1 flex flex-col min-w-0 w-full max-w-full">
+          <div className="overflow-x-auto flex-1 w-full max-w-full">
+            <table className="w-full text-left text-sm text-slate-400 min-w-[600px]">
               <thead className="text-[10px] uppercase bg-slate-950 text-slate-500 sticky top-0 z-10">
                 <tr>
                   <th className="px-4 py-4 font-black tracking-widest">Nome / Empresa</th>

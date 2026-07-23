@@ -169,7 +169,7 @@ const maskPhone = (value: string) => {
 
 // --- Componentes Reutilizáveis ---
 const Card = ({ children, className = "", ...props }: any) => (
-  <div {...props} className={`bg-slate-900 border border-slate-800 rounded-[2.5rem] p-7 shadow-2xl transition-all duration-300 hover:border-slate-700/50 ${className}`}>
+  <div {...props} className={`bg-slate-900 border border-slate-800 rounded-[2.5rem] p-7 shadow-2xl transition-all duration-300 hover:border-slate-700/50 min-w-0 w-full ${className}`}>
     {children}
   </div>
 );
@@ -255,7 +255,7 @@ const AgendaView = ({ currentMonth, setCurrentMonth, permissions, calendarDays, 
   const [selectedDay, setSelectedDay] = useState<string | null>(new Date().toISOString().split('T')[0]);
 
   return (
-    <div className="space-y-4 sm:space-y-8">
+    <div className="space-y-4 sm:space-y-8 w-full max-w-full min-w-0">
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 sm:gap-6">
         <div>
           <h2 className="text-2xl sm:text-4xl font-black text-white uppercase tracking-tighter">Cronograma</h2>
@@ -452,7 +452,7 @@ const AgendaView = ({ currentMonth, setCurrentMonth, permissions, calendarDays, 
 };
 
 const ListView = ({ title, data, columns, collName, onAdd, permissions, handleToggleStatus, handleSetAgendaStatus, setFormData, setEditingId, setIsModalOpen, setItemToDelete, isSystemAdmin, fetchCollections, extraAction }: any) => (
-  <div className="space-y-6 sm:space-y-10">
+  <div className="space-y-6 sm:space-y-10 w-full max-w-full min-w-0">
     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
       <div>
         <h2 className="text-2xl sm:text-5xl font-black text-white uppercase tracking-tighter leading-tight">{title}</h2>
@@ -474,7 +474,7 @@ const ListView = ({ title, data, columns, collName, onAdd, permissions, handleTo
 
     {/* Versão Desktop e Mobile: Tabela Modernizada */}
     <Card className="p-0 overflow-hidden bg-slate-950/20 border-slate-800/60 rounded-[3rem] shadow-2xl backdrop-blur-sm">
-      <div className="overflow-x-auto scrollbar-hide">
+      <div className="overflow-x-auto scrollbar-hide w-full max-w-full">
         <table className="w-full text-left border-separate border-spacing-0 min-w-[800px]">
           <thead>
             <tr className="bg-slate-950">
@@ -754,7 +754,7 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
   };
 
   return (
-    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-12">
+    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-12 w-full max-w-full min-w-0">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b border-slate-800 pb-6">
         <div>
@@ -812,7 +812,7 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
         </div>
 
         <Card className="border-slate-800 bg-slate-900/50 overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto w-full max-w-full">
             <table className="w-full text-sm text-left min-w-[600px]">
               <thead className="bg-slate-950/50 text-xs text-slate-500 uppercase tracking-wider font-bold">
                 <tr>
@@ -881,7 +881,7 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
         </div>
 
         <Card className="border-slate-800 bg-slate-900/50 overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto w-full max-w-full">
             <table className="w-full text-sm text-left min-w-[600px]">
               <thead className="bg-slate-950/50 text-xs text-slate-500 uppercase tracking-wider font-bold">
                 <tr>
@@ -926,7 +926,7 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
         </div>
         
         <Card className="border-slate-800 bg-slate-900/50 overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto w-full max-w-full">
             <table className="w-full text-sm text-left min-w-[600px]">
               <thead className="bg-slate-950/50 text-xs text-slate-500 uppercase tracking-wider font-bold">
                 <tr>
@@ -989,7 +989,7 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
         </div>
 
         <Card className="border-slate-800 bg-slate-900/50 overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto w-full max-w-full">
             <table className="w-full text-sm text-left min-w-[600px]">
               <thead className="bg-slate-950/50 text-xs text-slate-500 uppercase tracking-wider font-bold">
                 <tr>
@@ -1895,7 +1895,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
               {Object.entries(groupedPontos).map(([userName, dates]: any) => (
                 <div key={userName} className="bg-slate-950 p-6 rounded-2xl border border-slate-800/60">
                    <h5 className="text-lg font-black text-white uppercase tracking-wider mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">{userName}</h5>
-                   <div className="overflow-x-auto">
+                   <div className="overflow-x-auto w-full max-w-full">
                      <table className="w-full text-left text-sm text-slate-400 min-w-[600px]">
                        <thead className="text-[10px] uppercase bg-slate-900 text-slate-500">
                          <tr>
@@ -1934,7 +1934,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
                        </tbody>
                      </table>
                    </div>
-                   <div className="mt-4 flex gap-4 text-xs font-bold uppercase tracking-widest border-t border-slate-800 pt-4">
+                   <div className="mt-4 flex flex-wrap gap-4 text-xs font-bold uppercase tracking-widest border-t border-slate-800 pt-4">
                       <div className="text-slate-400">Total Trab: <span className="text-white">{minToTime(Object.values(dates).reduce((acc: number, curr: any) => acc + (curr.workedMin || 0), 0))}</span></div>
                       <div className="text-emerald-400">Total Extras: <span className="text-white">{minToTime(Object.values(dates).reduce((acc: number, curr: any) => acc + (curr.extraMin || 0), 0))}</span></div>
                       <div className="text-red-400">Total Atrasos: <span className="text-white">{minToTime(Object.values(dates).reduce((acc: number, curr: any) => acc + (curr.delayMin || 0), 0))}</span></div>
@@ -3349,7 +3349,7 @@ export default function App() {
                 <button
                   key={item.id}
                   onClick={() => { setActiveTab(item.id); setSidebarOpen(false); setFormData({}); setEditingId(null); setIsModalOpen(false); }}
-                  className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold text-sm cursor-pointer relative group ${isActive ? 'bg-emerald-500 text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.2)]' : 'text-slate-500 hover:bg-slate-800 hover:text-slate-200'}`}
+                  className={`w-full flex items-center gap-3 px-4 py-3 sm:gap-4 sm:px-5 sm:py-4 rounded-2xl transition-all font-bold text-sm cursor-pointer relative group ${isActive ? 'bg-emerald-500 text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.2)]' : 'text-slate-500 hover:bg-slate-800 hover:text-slate-200'}`}
                 >
                   <Icon size={20} className={isActive ? 'text-slate-950' : 'text-slate-600 group-hover:text-emerald-500'} /> 
                   <span className="tracking-tight">{displayLabel}</span>
@@ -3475,14 +3475,14 @@ export default function App() {
             >
               {activeTab === 'agenda' && (
                 <div className="space-y-6">
-                  <div className="flex gap-4 border-b border-slate-800 pb-4">
-                    <button onClick={() => setAgendaFilter('Pendente')} className={`pb-2 px-6 transition-all flex items-center justify-center ${agendaFilter === 'Pendente' ? 'text-amber-500 border-b-2 border-amber-500' : 'text-slate-600 hover:text-amber-500/50'}`} title="Pendentes">
+                  <div className="flex flex-wrap gap-4 border-b border-slate-800 pb-4">
+                    <button onClick={() => setAgendaFilter('Pendente')} className={`flex-1 sm:flex-none pb-2 px-4 sm:px-6 transition-all flex items-center justify-center ${agendaFilter === 'Pendente' ? 'text-amber-500 border-b-2 border-amber-500' : 'text-slate-600 hover:text-amber-500/50'}`} title="Pendentes">
                       <Clock size={22} />
                     </button>
-                    <button onClick={() => setAgendaFilter('Concluído')} className={`pb-2 px-6 transition-all flex items-center justify-center ${agendaFilter === 'Concluído' ? 'text-emerald-500 border-b-2 border-emerald-500' : 'text-slate-600 hover:text-emerald-500/50'}`} title="Concluídos">
+                    <button onClick={() => setAgendaFilter('Concluído')} className={`flex-1 sm:flex-none pb-2 px-4 sm:px-6 transition-all flex items-center justify-center ${agendaFilter === 'Concluído' ? 'text-emerald-500 border-b-2 border-emerald-500' : 'text-slate-600 hover:text-emerald-500/50'}`} title="Concluídos">
                       <CheckCircle size={22} />
                     </button>
-                    <button onClick={() => setAgendaFilter('Cancelado')} className={`pb-2 px-6 transition-all flex items-center justify-center ${agendaFilter === 'Cancelado' ? 'text-red-500 border-b-2 border-red-500' : 'text-slate-600 hover:text-red-500/50'}`} title="Cancelados">
+                    <button onClick={() => setAgendaFilter('Cancelado')} className={`flex-1 sm:flex-none pb-2 px-4 sm:px-6 transition-all flex items-center justify-center ${agendaFilter === 'Cancelado' ? 'text-red-500 border-b-2 border-red-500' : 'text-slate-600 hover:text-red-500/50'}`} title="Cancelados">
                       <X size={22} />
                     </button>
                   </div>
@@ -3611,10 +3611,10 @@ export default function App() {
 
                   {/* Filtro de Colaborador */}
                   {USER_PROFILES[currentUserProfile]?.role === 'administrator' && (
-                    <div className="flex gap-2 border-b border-slate-800 pb-4 overflow-x-auto scrollbar-hide">
-                      <button onClick={() => setTaskFilterPerson('all')} className={`whitespace-nowrap pb-2 px-4 text-sm font-black uppercase tracking-widest transition-all ${taskFilterPerson === 'all' ? 'text-emerald-500 border-b-2 border-emerald-500' : 'text-slate-500 hover:text-slate-300'}`}>Todos</button>
+                    <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-4">
+                      <button onClick={() => setTaskFilterPerson('all')} className={`flex-1 sm:flex-none whitespace-nowrap pb-2 px-2 sm:px-4 text-[9px] sm:text-sm font-black uppercase tracking-widest transition-all ${taskFilterPerson === 'all' ? 'text-emerald-500 border-b-2 border-emerald-500' : 'text-slate-500 hover:text-slate-300'}`}>Todos</button>
                       {RESPONSAVEIS.map((r: any) => (
-                        <button key={r.value} onClick={() => setTaskFilterPerson(r.value)} className={`whitespace-nowrap pb-2 px-4 text-sm font-black uppercase tracking-widest transition-all ${taskFilterPerson === r.value ? 'text-emerald-500 border-b-2 border-emerald-500' : 'text-slate-500 hover:text-slate-300'}`}>
+                        <button key={r.value} onClick={() => setTaskFilterPerson(r.value)} className={`flex-1 sm:flex-none whitespace-nowrap pb-2 px-2 sm:px-4 text-[9px] sm:text-sm font-black uppercase tracking-widest transition-all ${taskFilterPerson === r.value ? 'text-emerald-500 border-b-2 border-emerald-500' : 'text-slate-500 hover:text-slate-300'}`}>
                           {r.label}
                         </button>
                       ))}
@@ -3899,14 +3899,14 @@ export default function App() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[60] flex flex-col p-6 bg-slate-950/90 backdrop-blur-xl shadow-2xl"
+                className="fixed inset-0 z-[60] flex flex-col p-2 sm:p-6 bg-slate-950/90 backdrop-blur-xl shadow-2xl"
               >
-                <div className="w-full max-w-6xl mx-auto flex flex-col flex-1 relative">
+                <div className="w-full max-w-6xl mx-auto flex flex-col flex-1 relative min-w-0">
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-black text-white tracking-tighter">Histórico de Transações</h2>
                     <button onClick={() => setIsHistoryModalOpen(false)} className="p-3 text-slate-400 hover:text-white bg-slate-900 rounded-2xl border border-slate-800 hover:border-slate-700 shadow-lg transition-colors cursor-pointer"><X size={24} /></button>
                   </div>
-                  <div className="bg-slate-950 rounded-[24px] border border-slate-800 p-6 flex-1 shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-y-auto">
+                  <div className="bg-slate-950 rounded-[24px] border border-slate-800 p-6 flex-1 shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-y-auto overflow-x-hidden min-w-0">
                     <ListView 
                         title="Todas as Transações" 
                         data={transactions} 

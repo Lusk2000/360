@@ -234,13 +234,13 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full min-w-0">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800 pb-6">
         <div>
           <h2 className="text-2xl font-black text-white tracking-tighter">Relatório Executivo</h2>
           <p className="text-sm text-slate-400">Visão financeira estratégica e resultados operacionais</p>
         </div>
-        <div className="flex items-center gap-3 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
           {permissions.canExportReport('finance') && (
             <Button onClick={onDownload} variant="secondary" className="flex-1 sm:flex-none px-4 py-2.5 text-[11px] uppercase tracking-widest gap-2">
               <Download size={14} /> PDF
@@ -254,12 +254,12 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
         </div>
       </div>
 
-      <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-hide">
+      <div className="flex flex-wrap gap-2 pb-2">
         {['resumo', 'movimentacoes', 'graficos', 'analise', 'gastos_fixos'].map(tab => (
           <button 
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest whitespace-nowrap transition-all ${activeTab === tab ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'}`}
+            className={`flex-1 sm:flex-none px-2 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[9px] sm:text-xs font-bold uppercase tracking-widest whitespace-nowrap transition-all ${activeTab === tab ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'}`}
           >
             {tab === 'resumo' && 'Visão Geral'}
             {tab === 'movimentacoes' && 'Lançamentos'}
@@ -321,7 +321,7 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
             <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900/80">
               <h3 className="text-sm font-bold text-slate-300 uppercase tracking-widest flex items-center gap-2"><FileText size={16} className="text-emerald-500" /> Movimentação Financeira Detalhada</h3>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto w-full max-w-full">
               <table className="w-full text-left border-collapse min-w-[900px]">
                 <thead>
                   <tr className="bg-slate-950/50 border-b border-slate-800">
@@ -499,7 +499,7 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
             )}
           </div>
           <Card className="overflow-hidden">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto w-full max-w-full">
               <table className="w-full text-left border-collapse min-w-[800px]">
                 <thead>
                   <tr className="bg-slate-900 border-b border-slate-800">
