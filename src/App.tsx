@@ -1231,19 +1231,18 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
   };
 
   const isOutsideTolerance = (tipo: string, time: Date) => {
-    // 1. Remover a exibição imediata da janela de atraso/antecipação ao registrar a Saída para Almoço.
-    if (tipo === 'Saída Almoço') return false;
-
     const currentMinutes = time.getHours() * 60 + time.getMinutes();
-    
     let expectedTime = '';
     let tolAntes = 0;
     let tolDepois = 0;
-
     if (tipo === 'Entrada') {
       expectedTime = configPonto.hora_entrada || '08:00';
       tolAntes = configPonto.tolerancia_entrada_antes ?? 15;
       tolDepois = configPonto.tolerancia_entrada_depois ?? 15;
+    } else if (tipo === 'Saída Almoço') {
+      expectedTime = configPonto.hora_inicio_almoco || '12:00';
+      tolAntes = configPonto.tolerancia_inicio_almoco_antes ?? 15;
+      tolDepois = configPonto.tolerancia_inicio_almoco_depois ?? 15;
     } else if (tipo === 'Retorno Almoço') {
       expectedTime = configPonto.hora_fim_almoco || '13:00';
       if (configPonto.duracao_almoco) {
@@ -1264,25 +1263,11 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
       tolAntes = configPonto.tolerancia_saida_antes ?? 15;
       tolDepois = configPonto.tolerancia_saida_depois ?? 15;
     }
-
     if (!expectedTime) return false;
-
     const [eh, em] = expectedTime.split(':').map(Number);
     const expectedMinutes = eh * 60 + em;
-
-    if (tipo === 'Entrada' || tipo === 'Retorno Almoço') {
-      // Justificar apenas atrasos (chegar tarde)
-      return currentMinutes > (expectedMinutes + tolDepois);
-    }
-
-    if (tipo === 'Saída') {
-      // Justificar saídas antecipadas (sair cedo) ou atrasos na saída (hora extra)
-      return currentMinutes < (expectedMinutes - tolAntes) || currentMinutes > (expectedMinutes + tolDepois);
-    }
-
-    return false;
+    return currentMinutes < (expectedMinutes - tolAntes) || currentMinutes > (expectedMinutes + tolDepois);
   };
-
   const initiatePonto = (tipo: string) => {
     if (isOutsideTolerance(tipo, new Date())) {
       setPendingPonto(tipo);
