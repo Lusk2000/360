@@ -3,6 +3,7 @@ import { generateExecutiveReport } from '../utils/pdfGenerator';
 import { getFixedExpensesTasks, parseFixedExpense } from '../utils/fixedExpenses';
 import { Download, ArrowUpCircle, Plus, DollarSign, TrendingUp, TrendingDown, Activity, FileText, PieChart, BarChart3, CreditCard, Edit3, Trash2, CalendarIcon, CheckCircle, X } from 'lucide-react';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell, Legend } from 'recharts';
+import { FinancialDisplay, DisplayModeToggle } from './FinancialDisplay';
 
 const Card = ({ children, className = "" }: any) => (
   <div className={`bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden backdrop-blur-sm ${className}`}>
@@ -25,24 +26,30 @@ const Button = ({ children, onClick = () => {}, variant = "primary", className =
   );
 };
 
-export default function FinancialReportView({ transactions, tasks = [], fetchCollections, currentUserProfile, user, supabase, permissions, setEditingId, setFormData, setIsModalOpen, setItemToDelete, onDownload }: any) {
+export default function FinancialReportView({ transactions, tasks = [], fetchCollections, currentUserProfile, user, supabase, permissions, setEditingId, setFormData, setIsModalOpen, setItemToDelete, onDownload, financialDisplayMode = 'both', setFinancialDisplayMode }: any) {
+  const formatVal = (val: number, base: number, mode?: string) => {
+    if (financialDisplayMode === 'currency') return `R$ ${val.toLocaleString('pt-BR', {minimumFractionDigits:2})}`;
+    const pct = base > 0 ? ((Math.abs(val) / base) * 100).toFixed(1) + '%' : '0.0%';
+    if (financialDisplayMode === 'percentage') return pct;
+    return `R$ ${val.toLocaleString('pt-BR', {minimumFractionDigits:2})} (${pct})`;
+  };
 
   const handleDownloadFinance = () => {
     generateExecutiveReport({
       title: 'Relatório Financeiro Executivo',
       period: 'Todos os registros',
       cards: [
-        { label: 'Receita Total', value: `R$ ${totalIncome.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [34, 197, 94] },
-        { label: 'Despesas', value: `R$ ${totalExpense.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [239, 68, 68] },
-        { label: 'Lucro Líquido', value: `R$ ${totalProfit.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [37, 99, 235] }
+        { label: 'Receita Total', value: formatVal(totalIncome, totalIncome, financialDisplayMode), color: [34, 197, 94] },
+        { label: 'Despesas', value: formatVal(totalExpense, totalIncome, financialDisplayMode), color: [239, 68, 68] },
+        { label: 'Lucro Líquido', value: formatVal(totalProfit, totalIncome, financialDisplayMode), color: [37, 99, 235] }
       ],
       mainTable: {
         title: 'Resumo Detalhado (Entradas e Saídas)',
         head: [['Indicador', 'Entradas (Receitas)', 'Saídas (Despesas)']],
         body: [
           ['Quantidade de Registros', incomeCount.toString(), expenseCount.toString()],
-          ['Valor Total', `R$ ${totalIncome.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, `R$ ${totalExpense.toLocaleString('pt-BR', {minimumFractionDigits:2})}`],
-          ['Ticket Médio', `R$ ${avgIncome.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, `R$ ${avgExpense.toLocaleString('pt-BR', {minimumFractionDigits:2})}`]
+          ['Valor Total', formatVal(totalIncome, totalIncome, financialDisplayMode), formatVal(totalExpense, totalIncome, financialDisplayMode)],
+          ['Ticket Médio', formatVal(avgIncome, totalIncome, financialDisplayMode), formatVal(avgExpense, totalExpense, financialDisplayMode)]
         ]
       },
       additionalTables: [
@@ -54,7 +61,7 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
             t.cliente || t.descricao || '-',
             t.categoria || '-',
             t.conta || 'Conta Principal',
-            `R$ ${Number(t.valor).toLocaleString('pt-BR', {minimumFractionDigits:2})}`,
+            formatVal(Number(t.valor), t.type === 'income' ? totalIncome : totalExpense, financialDisplayMode),
             t.status === 'paid' ? 'Pago' : t.status === 'pending' ? 'Pendente' : 'Cancelado'
           ]),
           didParseCell: function(data: any) {
@@ -69,7 +76,7 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
           }
         }
       ],
-      summary: `A operação apresentou um total de ${transactions.length} registros no período selecionado. O lucro líquido, que é o valor final descontadas todas as despesas da receita bruta, ficou em R$ ${totalProfit.toLocaleString('pt-BR', {minimumFractionDigits:2})}, resultando em uma margem de rentabilidade de ${profitMargin}%.`,
+      summary: `A operação apresentou um total de ${transactions.length} registros no período selecionado. O lucro líquido, que é o valor final descontadas todas as despesas da receita bruta, ficou em ${formatVal(totalProfit, totalIncome, financialDisplayMode)}, resultando em uma margem de rentabilidade de ${profitMargin}%.`,
       filename: `relatorio_financeiro_executivo_${new Date().toISOString().split('T')[0]}.pdf`
     });
   };
@@ -88,7 +95,7 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
       ft.category,
       ft.recurrence,
       'Dia ' + ft.day,
-      'R$ ' + Number(ft.value).toLocaleString('pt-BR', {minimumFractionDigits: 2}),
+      formatVal(Number(ft.value), totalExpense, financialDisplayMode),
       ft.active ? 'Ativo' : 'Inativo'
     ]);
     
@@ -98,7 +105,7 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
       cards: [
         { label: 'Total de Gastos Fixos', value: fixedExpensesTasks.length, color: [37, 99, 235] },
         { label: 'Ativos', value: fixedExpensesTasks.filter((f: any) => f.active).length, color: [34, 197, 94] },
-        { label: 'Valor Total Estimado (Mês)', value: 'R$ ' + fixedExpensesTasks.filter((f: any) => f.active).reduce((acc: number, f: any) => acc + Number(f.value), 0).toLocaleString('pt-BR', {minimumFractionDigits: 2}), color: [239, 68, 68] }
+        { label: 'Valor Total Estimado (Mês)', value: formatVal(fixedExpensesTasks.filter((f: any) => f.active).reduce((acc: number, f: any, financialDisplayMode) => acc + Number(f.value), 0), totalExpense), color: [239, 68, 68] }
       ],
       mainTable: {
         title: 'Lista de Gastos Fixos',
@@ -145,7 +152,7 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
         if (error) throw error;
       }
     } catch (err: any) {
-      console.error('Erro ao salvar:', err);
+      if(err?.message?.includes('Failed to fetch')) { console.warn('Erro ao salvar:', err); } else { console.error('Erro ao salvar:', err); }
       alert('Erro ao salvar Gasto Fixo: ' + err.message);
       setIsProcessing(false);
       return;
@@ -213,7 +220,7 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
     });
   }, [incomeTransactions, expenseTransactions]);
 
-  const StatCard = ({ title, value, icon, trend, desc, colorClass }: any) => (
+  const StatCard = ({ title, value, numValue, baseValue, icon, trend, desc, colorClass, displayMode, tooltip }: any) => (
     <Card className="p-5 flex flex-col gap-2">
       <div className="flex justify-between items-start">
         <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${colorClass.bg} ${colorClass.text}`}>
@@ -227,7 +234,11 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
       </div>
       <div>
         <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-2">{title}</p>
-        <h4 className={`text-2xl font-black mt-1 ${colorClass.value || 'text-white'}`}>{value}</h4>
+        {numValue !== undefined ? (
+          <FinancialDisplay value={numValue} base={baseValue} mode={displayMode || 'both'} className={`mt-1 ${colorClass.value || 'text-white'}`} currencyClassName="text-2xl font-black" tooltip={tooltip} />
+        ) : (
+          <h4 className={`text-2xl font-black mt-1 ${colorClass.value || 'text-white'}`}>{value}</h4>
+        )}
         {desc && <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{desc}</p>}
       </div>
     </Card>
@@ -273,11 +284,14 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
       {activeTab === 'resumo' && (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div>
-            <h3 className="text-sm font-bold text-slate-300 uppercase tracking-widest mb-4 flex items-center gap-2"><DollarSign size={16} className="text-emerald-500" /> Resumo Executivo</h3>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-sm font-bold text-slate-300 uppercase tracking-widest flex items-center gap-2"><DollarSign size={16} className="text-emerald-500" /> Resumo Executivo</h3>
+              <DisplayModeToggle mode={financialDisplayMode} setMode={setFinancialDisplayMode} />
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <StatCard title="Receita Total" value={`R$ ${totalIncome.toLocaleString('pt-BR', {minimumFractionDigits:2})}`} icon={<ArrowUpCircle size={20}/>} colorClass={{bg: 'bg-emerald-500/20', text: 'text-emerald-500', value: 'text-emerald-400'}} desc="Soma de todos os lançamentos do tipo Entrada." />
-              <StatCard title="Despesas" value={`R$ ${totalExpense.toLocaleString('pt-BR', {minimumFractionDigits:2})}`} icon={<TrendingDown size={20}/>} colorClass={{bg: 'bg-red-500/20', text: 'text-red-500', value: 'text-red-400'}} desc="Soma de todos os lançamentos do tipo Saída." />
-              <StatCard title="Lucro Líquido" value={`R$ ${totalProfit.toLocaleString('pt-BR', {minimumFractionDigits:2})}`} icon={<Activity size={20}/>} colorClass={{bg: 'bg-indigo-500/20', text: 'text-indigo-500', value: 'text-indigo-400'}} desc="Receita Total - Despesas" />
+              <StatCard title="Receita Total" numValue={totalIncome} baseValue={totalIncome} displayMode={financialDisplayMode} tooltip="100% da Receita Total" icon={<ArrowUpCircle size={20}/>} colorClass={{bg: 'bg-emerald-500/20', text: 'text-emerald-500', value: 'text-emerald-400'}} desc="Soma de todos os lançamentos do tipo Entrada." />
+              <StatCard title="Despesas" numValue={totalExpense} baseValue={totalIncome} displayMode={financialDisplayMode} tooltip="% em relação à Receita Total" icon={<TrendingDown size={20}/>} colorClass={{bg: 'bg-red-500/20', text: 'text-red-500', value: 'text-red-400'}} desc="Soma de todos os lançamentos do tipo Saída." />
+              <StatCard title="Lucro Líquido" numValue={totalProfit} baseValue={totalIncome} displayMode={financialDisplayMode} tooltip="Margem de Lucro (% da Receita)" icon={<Activity size={20}/>} colorClass={{bg: 'bg-indigo-500/20', text: 'text-indigo-500', value: 'text-indigo-400'}} desc="Receita Total - Despesas" />
             </div>
           </div>
 
@@ -286,9 +300,9 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
               <h3 className="text-sm font-bold text-slate-300 uppercase tracking-widest mb-4 border-b border-slate-800 pb-2">Resumo das Entradas</h3>
               <div className="space-y-4 pt-2">
                 <div className="flex justify-between items-center"><span className="text-slate-400 text-sm">Quantidade de Receitas</span><span className="font-mono text-emerald-400 font-bold">{incomeCount}</span></div>
-                <div className="flex justify-between items-center"><span className="text-slate-400 text-sm">Receita Média (Ticket Médio)</span><span className="font-mono text-emerald-400 font-bold">R$ {avgIncome.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span></div>
-                <div className="flex justify-between items-center"><span className="text-slate-400 text-sm">Maior Receita</span><span className="font-mono text-emerald-400 font-bold">R$ {maxIncome.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span></div>
-                <div className="flex justify-between items-center"><span className="text-slate-400 text-sm">Menor Receita</span><span className="font-mono text-emerald-400 font-bold">R$ {minIncome.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span></div>
+                <div className="flex justify-between items-center"><span className="text-slate-400 text-sm">Receita Média (Ticket Médio)</span><FinancialDisplay value={avgIncome} base={totalIncome} mode={financialDisplayMode} className="font-mono text-emerald-400 font-bold" /></div>
+                <div className="flex justify-between items-center"><span className="text-slate-400 text-sm">Maior Receita</span><FinancialDisplay value={maxIncome} base={totalIncome} mode={financialDisplayMode} className="font-mono text-emerald-400 font-bold" /></div>
+                <div className="flex justify-between items-center"><span className="text-slate-400 text-sm">Menor Receita</span><FinancialDisplay value={minIncome} base={totalIncome} mode={financialDisplayMode} className="font-mono text-emerald-400 font-bold" /></div>
               </div>
             </Card>
 
@@ -296,9 +310,9 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
               <h3 className="text-sm font-bold text-slate-300 uppercase tracking-widest mb-4 border-b border-slate-800 pb-2">Resumo das Saídas</h3>
               <div className="space-y-4 pt-2">
                 <div className="flex justify-between items-center"><span className="text-slate-400 text-sm">Quantidade de Despesas</span><span className="font-mono text-red-400 font-bold">{expenseCount}</span></div>
-                <div className="flex justify-between items-center"><span className="text-slate-400 text-sm">Despesa Média</span><span className="font-mono text-red-400 font-bold">R$ {avgExpense.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span></div>
-                <div className="flex justify-between items-center"><span className="text-slate-400 text-sm">Maior Despesa</span><span className="font-mono text-red-400 font-bold">R$ {maxExpense.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span></div>
-                <div className="flex justify-between items-center"><span className="text-slate-400 text-sm">Menor Despesa</span><span className="font-mono text-red-400 font-bold">R$ {minExpense.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span></div>
+                <div className="flex justify-between items-center"><span className="text-slate-400 text-sm">Despesa Média</span><FinancialDisplay value={avgExpense} base={totalExpense} mode={financialDisplayMode} className="font-mono text-red-400 font-bold" /></div>
+                <div className="flex justify-between items-center"><span className="text-slate-400 text-sm">Maior Despesa</span><FinancialDisplay value={maxExpense} base={totalExpense} mode={financialDisplayMode} className="font-mono text-red-400 font-bold" /></div>
+                <div className="flex justify-between items-center"><span className="text-slate-400 text-sm">Menor Despesa</span><FinancialDisplay value={minExpense} base={totalExpense} mode={financialDisplayMode} className="font-mono text-red-400 font-bold" /></div>
               </div>
             </Card>
             
@@ -348,7 +362,7 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
                       <td className="p-4 text-slate-400 text-xs">{t.categoria || 'Geral'}</td>
                       <td className="p-4 text-slate-400 text-xs">{t.forma_pagamento || 'PIX'}</td>
                       <td className={`p-4 text-right font-mono font-bold ${t.type === 'income' ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {t.type === 'income' ? '+' : '-'} R$ {Number(t.valor).toLocaleString('pt-BR', {minimumFractionDigits:2})}
+                        {t.type === 'income' ? '+' : '-'} <FinancialDisplay value={Number(t.valor)} base={t.type === 'income' ? totalIncome : totalExpense} mode={financialDisplayMode} className="inline-flex" />
                       </td>
                       <td className="p-4 text-center">
                         <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${t.type === 'expense' ? 'bg-red-500/10 text-red-400' : (t.status === 'received' ? 'bg-indigo-500/10 text-indigo-400' : 'bg-slate-800 text-slate-400')}`}>
@@ -394,7 +408,7 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
                         <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value: any) => `R$ ${value.toLocaleString('pt-BR', {minimumFractionDigits:2})}`} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '12px', color: '#f8fafc' }} />
+                    <Tooltip formatter={(value: any) => { const percentage = totalIncome > 0 ? (value / totalIncome) * 100 : 0; return `R$ ${value.toLocaleString("pt-BR", {minimumFractionDigits:2})} (${percentage.toFixed(2)}%)`; }} contentStyle={{ backgroundColor: "#0f172a", borderColor: "#1e293b", borderRadius: "12px", color: "#f8fafc" }} />
                     <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }} />
                   </RechartsPieChart>
                 </ResponsiveContainer>
@@ -411,7 +425,7 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
                         <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value: any) => `R$ ${value.toLocaleString('pt-BR', {minimumFractionDigits:2})}`} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '12px', color: '#f8fafc' }} />
+                    <Tooltip formatter={(value: any) => { const percentage = totalExpense > 0 ? (value / totalExpense) * 100 : 0; return `R$ ${value.toLocaleString("pt-BR", {minimumFractionDigits:2})} (${percentage.toFixed(2)}%)`; }} contentStyle={{ backgroundColor: "#0f172a", borderColor: "#1e293b", borderRadius: "12px", color: "#f8fafc" }} />
                     <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }} />
                   </RechartsPieChart>
                 </ResponsiveContainer>
@@ -427,7 +441,7 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
                     <XAxis dataKey="date" stroke="#64748b" fontSize={10} tickFormatter={(val) => val.split('-').reverse().slice(0,2).join('/')} />
                     <YAxis stroke="#64748b" fontSize={10} tickFormatter={(val) => `R$${val > 1000 ? (val/1000).toFixed(1)+'k' : val}`} />
                     <Tooltip 
-                      formatter={(value: any) => `R$ ${value.toLocaleString('pt-BR', {minimumFractionDigits:2})}`} 
+                      formatter={(value: any, name: any) => { let percentage = 0; if (name === "Entradas") { percentage = totalIncome > 0 ? (value / totalIncome) * 100 : 0; } else if (name === "Saídas") { percentage = totalExpense > 0 ? (value / totalExpense) * 100 : 0; } return `R$ ${value.toLocaleString("pt-BR", {minimumFractionDigits:2})} (${percentage.toFixed(2)}%)`; }}
                       labelFormatter={(label) => new Date(label).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}
                       contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '12px', color: '#f8fafc' }} 
                     />
@@ -452,13 +466,13 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
               
               <ul className="space-y-4 pl-4 border-l-2 border-slate-800">
                 <li>
-                  <strong className="text-emerald-400">Faturamento:</strong> A empresa processou um faturamento de <strong>R$ {totalIncome.toLocaleString('pt-BR', {minimumFractionDigits:2})}</strong> ao longo de {incomeCount} transações, resultando num ticket médio de <strong>R$ {avgIncome.toLocaleString('pt-BR', {minimumFractionDigits:2})}</strong> por entrada.
+                  <strong className="text-emerald-400">Faturamento:</strong> A empresa processou um faturamento de <strong><FinancialDisplay value={totalIncome} base={totalIncome} mode={financialDisplayMode} className="inline-flex" tooltip="100% da Receita Total" /></strong> ao longo de {incomeCount} transações, resultando num ticket médio de <strong><FinancialDisplay value={avgIncome} base={totalIncome} mode={financialDisplayMode} className="inline-flex" tooltip="% em relação à Receita Total" /></strong> por entrada.
                 </li>
                 <li>
-                  <strong className="text-red-400">Custos Operacionais:</strong> As saídas totalizaram <strong>R$ {totalExpense.toLocaleString('pt-BR', {minimumFractionDigits:2})}</strong>. As despesas representaram <strong>{totalIncome > 0 ? ((totalExpense / totalIncome) * 100).toFixed(1) : 0}%</strong> das receitas no período.
+                  <strong className="text-red-400">Custos Operacionais:</strong> As saídas totalizaram <strong><FinancialDisplay value={totalExpense} base={totalIncome} mode={financialDisplayMode} className="inline-flex" tooltip="% em relação à Receita Total" /></strong>.
                 </li>
                 <li>
-                  <strong className="text-blue-400">Resultado Líquido:</strong> O lucro líquido alcançado no período avaliado foi de <strong>R$ {totalProfit.toLocaleString('pt-BR', {minimumFractionDigits:2})}</strong>, perfazendo uma margem de rentabilidade de <strong>{profitMargin}%</strong>.
+                  <strong className="text-blue-400">Resultado Líquido:</strong> O lucro líquido alcançado no período avaliado foi de <strong><FinancialDisplay value={totalProfit} base={totalIncome} mode={financialDisplayMode} className="inline-flex" tooltip="Margem de Lucro (% da Receita)" /></strong>.
                 </li>
                 {Object.keys(incomeByCategory).length > 0 && (
                   <li>
@@ -521,7 +535,7 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
                       <td className="px-6 py-4 text-sm text-slate-300 font-medium">{ft.recurrence}</td>
                       <td className="px-6 py-4 text-sm text-slate-300 font-mono">Dia {ft.day}</td>
                       <td className="px-6 py-4 text-sm text-red-400 font-black font-mono text-right">
-                        R$ {Number(ft.value).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                        <FinancialDisplay value={Number(ft.value)} base={totalExpense} mode={financialDisplayMode} className="inline-flex" />
                       </td>
                       <td className="px-6 py-4 text-center">
                         <span className={`px-2 py-1 rounded-md text-[10px] uppercase tracking-widest font-bold ${ft.active ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>

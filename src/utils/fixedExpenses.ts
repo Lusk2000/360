@@ -152,8 +152,12 @@ export const syncFixedExpenses = async (tasks: any[], transactions: any[], supab
             })
          };
          
-         const { error } = await supabase.from('transactions').insert(payload);
-         if (!error) inserted = true;
+         try {
+            const { error } = await supabase.from('transactions').insert(payload);
+            if (!error) inserted = true;
+         } catch (e: any) {
+            if(e?.message?.includes('Failed to fetch')) { console.warn('Error inserting fixed expense:', e); } else { console.error('Error inserting fixed expense:', e); }
+         }
          
          if (ft.recurrence === 'Semanal') {
             currentNextDate = addDays(currentNextDate, 7);

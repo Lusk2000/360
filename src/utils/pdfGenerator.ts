@@ -42,14 +42,15 @@ const textColor: [number, number, number] = [255, 255, 255];
 const lightText: [number, number, number] = [148, 163, 184]; 
 
 export const generateExecutiveReport = async (config: ExecutiveReportConfig) => {
-  const [jspdf, autoTableModule] = await Promise.all([
-    import('jspdf'),
-    import('jspdf-autotable')
-  ]);
-  const jsPDF = jspdf.default;
-  const autoTable = autoTableModule.default;
+  try {
+    const [jspdf, autoTableModule] = await Promise.all([
+      import('jspdf'),
+      import('jspdf-autotable')
+    ]);
+    const jsPDF = jspdf.default;
+    const autoTable = autoTableModule.default;
 
-  const doc = new jsPDF();
+    const doc = new jsPDF();
   const now = new Date();
   const dateStr = now.toLocaleDateString('pt-BR');
   const timeStr = now.toLocaleTimeString('pt-BR');
@@ -358,4 +359,8 @@ export const generateExecutiveReport = async (config: ExecutiveReportConfig) => 
 
   const defaultFilename = `relatorio_${dateStr.replace(/\//g, '-')}.pdf`;
   doc.save(config.filename || defaultFilename);
+  } catch (err: any) {
+    if(err?.message?.includes("Failed to fetch")) console.warn("Erro ao gerar PDF:", err); else console.error("Erro ao gerar PDF:", err);
+    alert("Falha ao gerar o PDF. Verifique sua conexão de rede ou tente novamente.");
+  }
 };

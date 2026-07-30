@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, Filter, Phone, Mail, Building2, MapPin, Calendar, Clock, DollarSign, Target, CheckCircle2, XCircle, FileText, Download, Users, User, ArrowRight, Trash2, Edit3, MessageCircle } from 'lucide-react';
 
 const CRM_STATUSES = [
-  "Lead",
+  
   "Proposta Enviada",
   "Negociação",
   "Aguardando Retorno",
@@ -65,11 +65,11 @@ export const CRMView = ({
   // Estatísticas
   const stats = useMemo(() => {
     const active = clients.filter((c: any) => c.status === 'Cliente Ativo').length;
-    const leads = clients.filter((c: any) => ['Lead'].includes(c.status)).length;
+    const leads = clients.filter((c: any) => ['Proposta Enviada'].includes(c.status)).length;
     const lost = clients.filter((c: any) => c.status === 'Lead Perdido').length;
     const negotiating = clients.filter((c: any) => ['Proposta Enviada', 'Negociação', 'Aguardando Retorno'].includes(c.status)).length;
     const sales = clients.filter((c: any) => c.status === 'Venda Concluída').length;
-    const newCount = clients.filter((c: any) => c.status === 'Lead').length;
+    const newCount = clients.filter((c: any) => c.status === 'Proposta Enviada').length;
     
     return { active, leads, lost, negotiating, sales, newCount, total: clients.length };
   }, [clients]);
@@ -104,6 +104,7 @@ export const CRMView = ({
         origem: client.origem || '',
         responsavel_atendimento: client.responsavel_atendimento || '',
         prioridade: client.prioridade || 'Média',
+        qualificacao: client.qualificacao || 'Frio',
         anotacoes: client.anotacoes || '',
         timeline: [
            ...(client.timeline || []),
@@ -118,8 +119,8 @@ export const CRMView = ({
 
       await supabase.from('clients').update(payload).eq('id', clientId);
       fetchCollections('clients');
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      if(err?.message?.includes('Failed to fetch')) { console.warn(err); } else { console.error(err); }
     }
   };
 
@@ -151,7 +152,7 @@ export const CRMView = ({
           <h2 className="text-2xl font-black text-white tracking-tighter uppercase flex items-center gap-2">
             <Target className="text-emerald-500" /> Cadastro CRM
           </h2>
-          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Gestão de Clientes e Negócios</p>
+          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Gestão de Leads e Negócios</p>
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
            {permissions.canExportReport('clients') && (
@@ -193,7 +194,7 @@ export const CRMView = ({
         </div>
         <input 
           type="text" 
-          placeholder="Buscar clientes por nome, empresa, telefone..."
+          placeholder="Buscar leads por nome, empresa, telefone..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 pl-10 pr-4 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-slate-600 font-medium"
@@ -204,7 +205,7 @@ export const CRMView = ({
         <div className="flex-1 overflow-y-auto pb-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {CRM_STATUSES.map(status => {
-              const count = filteredClients.filter((c: any) => (c.status || 'Lead') === status).length;
+              const count = filteredClients.filter((c: any) => (c.status || 'Proposta Enviada') === status).length;
               return (
                 <div 
                   key={status} 
@@ -228,6 +229,7 @@ export const CRMView = ({
                   <th className="px-4 py-4 font-black tracking-widest">Nome / Empresa</th>
                   <th className="px-4 py-4 font-black tracking-widest">Contato</th>
                   <th className="px-4 py-4 font-black tracking-widest">Status</th>
+                  <th className="px-4 py-4 font-black tracking-widest">Qualificação</th>
                   <th className="px-4 py-4 font-black tracking-widest">Prioridade</th>
                   {canViewValor && <th className="px-4 py-4 font-black tracking-widest">Valor</th>}
                   <th className="px-4 py-4 font-black tracking-widest">Ações</th>
@@ -245,9 +247,20 @@ export const CRMView = ({
                       <div className="text-[10px] text-slate-500 line-clamp-1">{client.email || '--'}</div>
                     </td>
                     <td className="px-4 py-4">
-                       <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md border ${STATUS_COLORS[client.status || 'Lead']}`}>
-                         {client.status || 'Lead'}
+                       <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md border ${STATUS_COLORS[client.status || 'Proposta Enviada']}`}>
+                         {client.status || 'Proposta Enviada'}
                        </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      {client.qualificacao && (
+                        <div className={`inline-block text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-wider ${
+                          client.qualificacao === 'Quente' ? 'bg-red-500/20 text-red-400' :
+                          client.qualificacao === 'Morno' ? 'bg-amber-500/20 text-amber-400' :
+                          'bg-blue-500/20 text-blue-400'
+                        }`}>
+                          {client.qualificacao}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-4">
                       {client.prioridade && (
@@ -283,7 +296,7 @@ export const CRMView = ({
                   <tr>
                     <td colSpan={5} className="px-4 py-12 text-center text-slate-500">
                       <Users size={32} className="mx-auto mb-4 opacity-20" />
-                      <p className="font-bold uppercase tracking-widest text-xs">Nenhum cliente encontrado</p>
+                      <p className="font-bold uppercase tracking-widest text-xs">Nenhum lead encontrado</p>
                     </td>
                   </tr>
                 )}
@@ -315,8 +328,8 @@ export const CRMView = ({
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border ${STATUS_COLORS[selectedClient.status || 'Lead']}`}>
-                      {selectedClient.status || 'Lead'}
+                    <span className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border ${STATUS_COLORS[selectedClient.status || 'Proposta Enviada']}`}>
+                      {selectedClient.status || 'Proposta Enviada'}
                     </span>
                     <button onClick={() => setIsClientModalOpen(false)} className="p-2 bg-slate-800 text-slate-400 hover:text-white rounded-xl transition-colors">
                       <XCircle size={24} />
@@ -338,6 +351,10 @@ export const CRMView = ({
                          <div className="flex justify-between">
                             <span className="text-slate-500">Origem</span>
                             <span className="text-slate-300">{selectedClient.origem || '--'}</span>
+                         </div>
+                         <div className="flex justify-between">
+                            <span className="text-slate-500">Qualificação</span>
+                            <span className="text-slate-300">{selectedClient.qualificacao || 'Frio'}</span>
                          </div>
                          <div className="flex justify-between">
                             <span className="text-slate-500">Responsável</span>
@@ -401,7 +418,7 @@ export const CRMView = ({
                     
                     {permissions.canEdit('clients') && (
                        <button onClick={() => { setIsClientModalOpen(false); setEditingId(selectedClient.id); setFormData(selectedClient); setIsModalOpen(true); }} className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-colors flex items-center justify-center gap-2">
-                         <Edit3 size={16} /> Editar Cliente
+                         <Edit3 size={16} /> Editar Lead
                        </button>
                     )}
 
@@ -516,7 +533,7 @@ export const CRMView = ({
                 <div>
                   <h2 className="text-xl font-black text-white">{selectedStatusForModal}</h2>
                   <p className="text-xs text-slate-500 font-bold tracking-widest uppercase mt-1">
-                    {filteredClients.filter((c: any) => (c.status || 'Lead') === selectedStatusForModal).length} Leads
+                    {filteredClients.filter((c: any) => (c.status || 'Proposta Enviada') === selectedStatusForModal).length} Leads
                   </p>
                 </div>
                 <button 
@@ -529,7 +546,7 @@ export const CRMView = ({
               
               <div className="flex-1 overflow-y-auto p-6 bg-slate-900">
                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                   {filteredClients.filter((c: any) => (c.status || 'Lead') === selectedStatusForModal).map((client: any) => (
+                   {filteredClients.filter((c: any) => (c.status || 'Proposta Enviada') === selectedStatusForModal).map((client: any) => (
                       <div 
                         key={client.id}
                         onClick={() => {
@@ -540,15 +557,26 @@ export const CRMView = ({
                       >
                         <div className="flex justify-between items-start mb-2">
                           <div className="font-bold text-sm text-white line-clamp-1">{client.nome || 'Sem Nome'}</div>
-                          {client.prioridade && (
-                            <div className={`text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-wider ${
-                              client.prioridade === 'Alta' ? 'bg-red-500/20 text-red-400' :
-                              client.prioridade === 'Média' ? 'bg-amber-500/20 text-amber-400' :
-                              'bg-blue-500/20 text-blue-400'
-                            }`}>
-                              {client.prioridade}
-                            </div>
-                          )}
+                          <div className="flex items-center gap-1">
+                            {client.qualificacao && (
+                              <div className={`text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-wider ${
+                                client.qualificacao === 'Quente' ? 'bg-red-500/20 text-red-400' :
+                                client.qualificacao === 'Morno' ? 'bg-amber-500/20 text-amber-400' :
+                                'bg-blue-500/20 text-blue-400'
+                              }`}>
+                                {client.qualificacao}
+                              </div>
+                            )}
+                            {client.prioridade && (
+                              <div className={`text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-wider ${
+                                client.prioridade === 'Alta' ? 'bg-red-500/20 text-red-400' :
+                                client.prioridade === 'Média' ? 'bg-amber-500/20 text-amber-400' :
+                                'bg-blue-500/20 text-blue-400'
+                              }`}>
+                                {client.prioridade}
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <div className="text-xs font-medium text-slate-400 mb-4 flex items-center gap-1.5 line-clamp-1">
                           <Building2 size={12} className="text-slate-500" /> {client.empresa || 'Sem Empresa'}
@@ -559,7 +587,7 @@ export const CRMView = ({
                         </div>
                       </div>
                    ))}
-                   {filteredClients.filter((c: any) => (c.status || 'Lead') === selectedStatusForModal).length === 0 && (
+                   {filteredClients.filter((c: any) => (c.status || 'Proposta Enviada') === selectedStatusForModal).length === 0 && (
                       <div className="col-span-full py-16 flex flex-col items-center justify-center text-slate-500">
                         <Users size={48} className="opacity-20 mb-4" />
                         <span className="text-sm font-bold tracking-widest uppercase">Nenhum lead neste status</span>

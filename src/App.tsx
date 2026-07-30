@@ -17,12 +17,19 @@ import {
 , RefreshCw, FileText, BarChart2, Download, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import FinancialReportView from './components/FinancialReportView';
+import { FinancialDisplay, DisplayModeToggle } from './components/FinancialDisplay';
 import { 
   ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid 
 } from 'recharts';
 import { supabase } from './lib/supabase';
 
-// --- Lista de Feriados Nacionais Brasil 2026 ---
+export const formatVal = (val: number, base: number, mode: 'both' | 'currency' | 'percentage') => {
+  if (mode === 'currency') return `R$ ${val.toLocaleString('pt-BR', {minimumFractionDigits:2})}`;
+  const pct = base > 0 ? ((Math.abs(val) / base) * 100).toFixed(1) + '%' : '0.0%';
+  if (mode === 'percentage') return pct;
+  return `R$ ${val.toLocaleString('pt-BR', {minimumFractionDigits:2})} (${pct})`;
+};
+
 const FERIADOS_2026 = [
   { data: '2026-01-01', titulo: 'Ano Novo', tipo: 'feriado' },
   { data: '2026-02-16', titulo: 'Carnaval', tipo: 'feriado' },
@@ -543,7 +550,7 @@ const ListView = ({ title, data, columns, collName, onAdd, permissions, handleTo
 );
 
 
-const ReportsView = ({ clients, tasks, appointments, transactions, dailyReports, openReportModal }: any) => {
+const ReportsView = ({ clients, tasks, appointments, transactions, dailyReports, openReportModal, financialDisplayMode, setFinancialDisplayMode }: any) => {
   const usersMap: any = {};
   tasks.forEach((t: any) => {
     const userLabel = t.atribuido_a || 'Sem responsável';
@@ -600,8 +607,6 @@ const ReportsView = ({ clients, tasks, appointments, transactions, dailyReports,
 
   const activeClientsCount = clients.filter((c: any) => c.status === 'active').length;
 
-
-
   const downloadFinance = () => {
     const incomeTransactions = transactions.filter((t: any) => t.type === 'income');
     const expenseTransactions = transactions.filter((t: any) => t.type === 'expense');
@@ -609,23 +614,23 @@ const ReportsView = ({ clients, tasks, appointments, transactions, dailyReports,
     const incomeTable = incomeTransactions.map((t: any) => [
       t.cliente || t.descricao || 'Receita',
       new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'}),
-      `R$ ${Number(t.valor).toLocaleString('pt-BR', {minimumFractionDigits:2})}`
+      formatVal(Number(t.valor), totalIncome, financialDisplayMode)
     ]);
 
     const expenseTable = expenseTransactions.map((t: any) => [
       t.descricao || 'Despesa',
       new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'}),
-      `R$ ${Number(t.valor).toLocaleString('pt-BR', {minimumFractionDigits:2})}`
+      formatVal(Number(t.valor), totalExpense, financialDisplayMode)
     ]);
 
     generateExecutiveReport({
       title: 'Relatório Financeiro',
       period: 'Geral',
       cards: [
-        { label: 'Entradas', value: `R$ ${totalIncome.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [34, 197, 94] },
-        { label: 'Saídas', value: `R$ ${totalExpense.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [239, 68, 68] },
-        { label: 'Lucro Bruto', value: `R$ ${totalProfit.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [37, 99, 235] },
-        { label: 'Lucro Líquido', value: `R$ ${totalProfit.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [37, 99, 235] }
+        { label: 'Entradas', value: formatVal(totalIncome, totalIncome, financialDisplayMode), color: [34, 197, 94] },
+        { label: 'Saídas', value: formatVal(totalExpense, totalIncome, financialDisplayMode), color: [239, 68, 68] },
+        { label: 'Lucro Bruto', value: formatVal(totalProfit, totalIncome, financialDisplayMode), color: [37, 99, 235] },
+        { label: 'Lucro Líquido', value: formatVal(totalProfit, totalIncome, financialDisplayMode), color: [37, 99, 235] }
       ],
       mainTable: {
         title: 'Entradas',
@@ -652,15 +657,15 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
     const prodTable = productivityData.map(row => [row.name, row.Concluídas, row['Não Realizadas'], `${row.Eficiência}%`]);
     
     const finKpis = [
-      { label: 'Receita Total', value: `R$ ${totalIncome.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [34, 197, 94] },
-      { label: 'Despesas', value: `R$ ${totalExpense.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [239, 68, 68] },
-      { label: 'Lucro Líquido', value: `R$ ${totalProfit.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [37, 99, 235] }
+      { label: 'Receita Total', value: formatVal(totalIncome, totalIncome, financialDisplayMode), color: [34, 197, 94] },
+      { label: 'Despesas', value: formatVal(totalExpense, totalIncome, financialDisplayMode), color: [239, 68, 68] },
+      { label: 'Lucro Líquido', value: formatVal(totalProfit, totalIncome, financialDisplayMode), color: [37, 99, 235] }
     ];
     
     const finTable = transactions.map((t: any) => [
       t.type === 'income' ? (t.cliente || 'N/A') : (t.descricao || 'N/A'),
       t.type === 'income' ? 'Entrada' : 'Saída',
-      `R$ ${Number(t.valor).toLocaleString('pt-BR', {minimumFractionDigits:2})}`,
+      formatVal(Number(t.valor), t.type === 'income' ? totalIncome : totalExpense, financialDisplayMode),
       new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'})
     ]);
 
@@ -690,7 +695,7 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
         }
       },
       {
-        title: 'Carteira de Clientes',
+        title: 'Carteira de Leads',
         head: [['Nome', 'Empresa/Projeto', 'Telefone', 'Status']],
         body: clientTable,
         didParseCell: function(data: any) {
@@ -741,7 +746,7 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
       cards: [
         ...prodKpis,
         ...finKpis as any,
-        { label: 'Clientes Ativos', value: activeClientsCount, color: [34, 197, 94] }
+        { label: 'Leads Ativos', value: activeClientsCount, color: [34, 197, 94] }
       ],
       mainTable: {
         title: 'Desempenho da Equipe',
@@ -802,7 +807,7 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                 <XAxis dataKey="name" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#fff', borderRadius: '12px' }} />
+                <Tooltip formatter={(value: any, name: any) => { let p = 0; if (name === "Receita") p = totalIncome > 0 ? (value / totalIncome) * 100 : 0; if (name === "Despesa") p = totalExpense > 0 ? (value / totalExpense) * 100 : 0; return `R$ ${value.toLocaleString("pt-BR", {minimumFractionDigits:2})} (${p.toFixed(2)}%)`; }} contentStyle={{ backgroundColor: "#0f172a", borderColor: "#1e293b", color: "#fff", borderRadius: "12px" }} />
                 <Bar dataKey="Concluídas" fill="#1E7F4F" radius={[4, 4, 0, 0]} barSize={30} />
                 <Bar dataKey="Pendentes" fill="#475569" radius={[4, 4, 0, 0]} barSize={30} />
                 <Bar dataKey="Não Realiz." fill="#ef4444" radius={[4, 4, 0, 0]} barSize={30} />
@@ -846,24 +851,27 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
           <h3 className="text-xl font-bold text-white flex items-center gap-2">
             <DollarSign size={24} className="text-[#C9A227]" /> Financeiro
           </h3>
-          <Button onClick={() => openReportModal('finance')} variant="secondary" className="h-8 px-3 text-xs bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800">
-            <Download size={14} className="mr-2" /> PDF
-          </Button>
+          <div className="flex items-center gap-4">
+            <DisplayModeToggle mode={financialDisplayMode} setMode={setFinancialDisplayMode} />
+            <Button onClick={() => openReportModal('finance')} variant="secondary" className="h-8 px-3 text-xs bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800">
+              <Download size={14} className="mr-2" /> PDF
+            </Button>
+          </div>
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           <div className="col-span-1 flex flex-col gap-4">
             <Card className="p-5 border-slate-800 bg-slate-900/50 flex flex-col justify-center">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Receita</span>
-              <span className="text-2xl font-black text-emerald-500">R$ {totalIncome.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>
+              <FinancialDisplay value={totalIncome} base={totalIncome} mode={financialDisplayMode} className="text-2xl font-black text-emerald-500" tooltip="100% da Receita Total" />
             </Card>
             <Card className="p-5 border-slate-800 bg-slate-900/50 flex flex-col justify-center">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Despesa</span>
-              <span className="text-2xl font-black text-red-500">R$ {totalExpense.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>
+              <FinancialDisplay value={totalExpense} base={totalIncome} mode={financialDisplayMode} className="text-2xl font-black text-red-500" tooltip="% em relação à Receita Total" />
             </Card>
             <Card className="p-5 border-slate-800 bg-slate-900/50 flex flex-col justify-center">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Lucro</span>
-              <span className="text-2xl font-black text-white">R$ {totalProfit.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>
+              <FinancialDisplay value={totalProfit} base={totalIncome} mode={financialDisplayMode} className="text-2xl font-black text-white" tooltip="Margem de Lucro (% da Receita)" />
             </Card>
           </div>
           <Card className="col-span-1 lg:col-span-3 p-5 border-slate-800 bg-slate-900/50 h-[300px]">
@@ -872,7 +880,7 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                 <XAxis dataKey="date" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#fff', borderRadius: '12px' }} />
+                <Tooltip formatter={(value: any, name: any) => { let p = 0; if (name === "Receita") p = totalIncome > 0 ? (value / totalIncome) * 100 : 0; if (name === "Despesa") p = totalExpense > 0 ? (value / totalExpense) * 100 : 0; return `R$ ${value.toLocaleString("pt-BR", {minimumFractionDigits:2})} (${p.toFixed(2)}%)`; }} contentStyle={{ backgroundColor: "#0f172a", borderColor: "#1e293b", color: "#fff", borderRadius: "12px" }} />
                 <Line type="monotone" dataKey="Receita" stroke="#10b981" strokeWidth={3} dot={{r:4, fill:'#10b981', strokeWidth:0}} activeDot={{r:6}} />
                 <Line type="monotone" dataKey="Despesa" stroke="#ef4444" strokeWidth={3} dot={{r:4, fill:'#ef4444', strokeWidth:0}} activeDot={{r:6}} />
               </LineChart>
@@ -887,7 +895,6 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
                 <tr>
                   <th className="px-6 py-4">Cliente / Descrição</th>
                   <th className="px-6 py-4">Tipo</th>
-                <th className="px-6 py-4">Localização (GPS)</th>
                   <th className="px-6 py-4">Valor</th>
                   <th className="px-6 py-4">Data</th>
                 </tr>
@@ -901,7 +908,9 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
                         {t.type === 'income' ? 'Entrada' : 'Saída'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 font-mono text-slate-300">R$ {Number(t.valor).toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
+                    <td className="px-6 py-4 font-mono text-slate-300">
+                      <FinancialDisplay value={Number(t.valor)} base={t.type === 'income' ? totalIncome : totalExpense} mode={financialDisplayMode} className="inline-flex" />
+                    </td>
                     <td className="px-6 py-4 text-slate-400">{new Date(t.data).toLocaleDateString('pt-BR')}</td>
                   </tr>
                 ))}
@@ -958,11 +967,11 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
         </Card>
       </div>
 
-      {/* SECTION: Clientes Ativos */}
+      {/* SECTION: Leads Ativos */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h3 className="text-xl font-bold text-white flex items-center gap-2">
-            <Users size={24} className="text-purple-500" /> Clientes
+            <Users size={24} className="text-purple-500" /> Leads
           </h3>
           <Button onClick={() => openReportModal('clients')} variant="secondary" className="h-8 px-3 text-xs bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800">
             <Download size={14} className="mr-2" /> PDF
@@ -971,11 +980,11 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
            <Card className="p-5 border-slate-800 bg-slate-900/50 flex flex-col justify-center">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Clientes Ativos</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Leads Ativos</span>
               <span className="text-3xl font-black text-white">{activeClientsCount}</span>
             </Card>
             <Card className="p-5 border-slate-800 bg-slate-900/50 flex flex-col justify-center">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Novos Clientes (Mês)</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Novos Leads (Mês)</span>
               <span className="text-3xl font-black text-white">
                 {clients.filter((c: any) => new Date(c.created_at).getMonth() === new Date().getMonth()).length}
               </span>
@@ -1224,7 +1233,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
          setPontos([{ ...payload, id: Math.random() }, ...pontos]);
       }
     } catch (err: any) {
-      console.error(err);
+      if(err?.message?.includes('Failed to fetch')) { console.warn(err); } else { console.error(err); }
     } finally {
       setIsProcessing(false);
     }
@@ -1442,9 +1451,19 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
     
     displayPontos.forEach((p: any) => {
       const user = p.usuario_nome || p.usuario_email;
-      const dateObj = new Date(p.data_hora);
+      
+      const parts = p.tipo.split('::justificativa::');
+      const baseTipo = parts[0];
+      const justificativaValue = parts.length > 1 ? parts[1] : null;
+
+      let dateObj = new Date(p.data_hora);
+      // Shifts overnight punches (not Entrada) before 07:00 AM to the previous day
+      if (baseTipo !== 'Entrada' && dateObj.getHours() < 7) {
+          dateObj = new Date(dateObj.getTime() - 24 * 60 * 60 * 1000);
+      }
+
       const dateStr = dateObj.toLocaleDateString('pt-BR');
-      const timeStr = dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const timeStr = new Date(p.data_hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
       const dayOfWeek = dateObj.toLocaleDateString('pt-BR', { weekday: 'short' });
       
       if (!groups[user]) groups[user] = {};
@@ -1460,9 +1479,6 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
         };
       }
       
-      const parts = p.tipo.split('::justificativa::');
-      const baseTipo = parts[0];
-      const justificativaValue = parts.length > 1 ? parts[1] : null;
       if (!groups[user][dateStr][baseTipo]) {
         groups[user][dateStr][baseTipo] = {
           id: p.id,
@@ -1485,9 +1501,17 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
        const expRetornoAlmoco = timeToMin(uConfig.hora_fim_almoco);
        const expSaida = timeToMin(uConfig.hora_saida);
        
-       let expectedTotal = 0;
-       if (expEntrada !== null && expSaidaAlmoco !== null) expectedTotal += (expSaidaAlmoco - expEntrada);
-       if (expRetornoAlmoco !== null && expSaida !== null) expectedTotal += (expSaida - expRetornoAlmoco);
+       const timeDiff = (start: number | null, end: number | null) => {
+           if (start === null || end === null) return 0;
+           let diff = end - start;
+           if (diff < 0) diff += 1440; // overnight
+           return diff;
+       };
+
+       let expectedTotal = timeDiff(expEntrada, expSaidaAlmoco) + timeDiff(expRetornoAlmoco, expSaida);
+       if (expSaidaAlmoco === null && expRetornoAlmoco === null) {
+           expectedTotal = timeDiff(expEntrada, expSaida);
+       }
 
        Object.keys(groups[user]).forEach(dateStr => {
           const day = groups[user][dateStr];
@@ -1495,46 +1519,54 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
           const t2 = day['Saída Almoço'] ? timeToMin(day['Saída Almoço'].time) : null;
           const t3 = day['Retorno Almoço'] ? timeToMin(day['Retorno Almoço'].time) : null;
           const t4 = day['Saída'] ? timeToMin(day['Saída'].time) : null;
-
+          
           let worked = 0;
           let hasIncomplete = false;
-          
-          if (t1 !== null && t2 !== null) {
-             worked += (t2 - t1);
-          } else if (t1 !== null || t2 !== null) {
-             hasIncomplete = true;
-          }
 
-          if (t3 !== null && t4 !== null) {
-             worked += (t4 - t3);
-          } else if (t3 !== null || t4 !== null) {
-             hasIncomplete = true;
-          }
-          
           if (!t1 && !t2 && !t3 && !t4) {
               day.workedMin = 0;
               day.extraMin = 0;
               day.delayMin = 0;
               return;
           }
-          
+
+          if (t1 !== null && t2 !== null && t3 !== null && t4 !== null) {
+              worked = timeDiff(t1, t2) + timeDiff(t3, t4);
+          } else if (t1 !== null && t4 !== null && t2 === null && t3 === null) {
+              // Somente Entrada e Saída (sem almoço) - Desconta tempo de almoço padrão, se houver
+              const totalDiff = timeDiff(t1, t4);
+              const lunchDuration = timeDiff(expSaidaAlmoco, expRetornoAlmoco);
+              worked = totalDiff - lunchDuration;
+              if (worked < 0) worked = 0;
+          } else {
+              if (t1 !== null && t2 !== null) {
+                 worked += timeDiff(t1, t2);
+              } else if (t1 !== null || t2 !== null) {
+                 hasIncomplete = true;
+              }
+              if (t3 !== null && t4 !== null) {
+                 worked += timeDiff(t3, t4);
+              } else if (t3 !== null || t4 !== null) {
+                 hasIncomplete = true;
+              }
+          }
+
           day.workedMin = hasIncomplete ? null : worked;
           day.extraMin = (day.workedMin !== null && day.workedMin > expectedTotal) ? (day.workedMin - expectedTotal) : 0;
           day.delayMin = (day.workedMin !== null && day.workedMin < expectedTotal) ? (expectedTotal - day.workedMin) : 0;
        });
     });
-
     return groups;
   }, [displayPontos, baseConfigPonto]);
-
   const exportarFolhaPontoPDF = async () => {
-    const [jspdf, autoTableModule] = await Promise.all([
-      import('jspdf'),
-      import('jspdf-autotable')
-    ]);
-    const jsPDF = jspdf.default;
-    const autoTable = autoTableModule.default;
-    const doc = new jsPDF();
+    try {
+      const [jspdf, autoTableModule] = await Promise.all([
+        import('jspdf'),
+        import('jspdf-autotable')
+      ]);
+      const jsPDF = jspdf.default;
+      const autoTable = autoTableModule.default;
+      const doc = new jsPDF();
     const now = new Date();
     const dateStr = now.toLocaleDateString('pt-BR');
     let isFirstPage = true;
@@ -1665,6 +1697,10 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
     }
 
     doc.save(`folha_de_ponto_${dateStr.replace(/\//g, '-')}.pdf`);
+    } catch (err: any) {
+      if(err?.message?.includes("Failed to fetch")) console.warn("Erro ao gerar PDF:", err); else console.error("Erro ao gerar PDF:", err);
+      alert("Falha ao gerar o PDF. Verifique sua conexão de rede ou tente novamente.");
+    }
   };
 
   const renderCell = (pointData: any, typeColorClass: string) => {
@@ -2082,6 +2118,7 @@ export default function App() {
   const [showGreeting, setShowGreeting] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chartMonthOffset, setChartMonthOffset] = useState(0);
+  const [financialDisplayMode, setFinancialDisplayMode] = useState<'both' | 'currency' | 'percentage'>('both');
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
@@ -2131,7 +2168,7 @@ export default function App() {
       
       syncFixedExpenses(tasks, transactions, supabase).then(inserted => {
         if (inserted && mounted) fetchCollections('transactions');
-      });
+      }).catch((err: any) => { if(err?.message === 'Failed to fetch') console.warn(err); else if(err?.message?.includes('Failed to fetch')) { console.warn(err); } else { console.error(err); } });
     }
     return () => { mounted = false; };
   }, [tasks, transactions]);
@@ -2209,7 +2246,7 @@ export default function App() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (error) {
-        console.error('Erro na sessão inicial:', error.message);
+        if(error.message === 'Failed to fetch') { console.warn('Erro na sessão inicial:', error.message); } else { console.error('Erro na sessão inicial:', error.message); }
         setAuthError(`Falha na conexão: ${error.message}`);
       }
       
@@ -2230,6 +2267,9 @@ export default function App() {
       } else {
         setIsSystemAdmin(false);
       }
+      setLoading(false);
+    }).catch((err: any) => {
+      if(err?.message === 'Failed to fetch') { console.warn('Erro ao obter sessão:', err); } else { console.error('Erro ao obter sessão:', err); }
       setLoading(false);
     });
 
@@ -2408,6 +2448,17 @@ export default function App() {
                  return c;
               });
               setter(parsedClients);
+            } else if (name === 'transactions' && data) {
+              const parsedTxs = data.map((t: any) => {
+                 try {
+                    if (t.descricao && t.descricao.startsWith('{')) {
+                       const parsed = JSON.parse(t.descricao);
+                       return { ...t, ...parsed, _raw_descricao: t.descricao };
+                    }
+                 } catch(e) {}
+                 return t;
+              });
+              setter(parsedTxs);
             } else {
               setter(data || []);
             }
@@ -2491,7 +2542,7 @@ export default function App() {
       if (end) filtered = filtered.filter((c:any) => (c.created_at || '').substring(0,10) <= end);
 
       const activeClientsCount = filtered.filter((c: any) => c.status === 'Cliente Ativo').length;
-      const leadsCount = filtered.filter((c: any) => ['Lead'].includes(c.status || 'Lead')).length;
+      const leadsCount = filtered.filter((c: any) => ['Proposta Enviada'].includes(c.status || 'Proposta Enviada')).length;
       const negotiatingCount = filtered.filter((c: any) => ['Proposta Enviada', 'Negociação', 'Aguardando Retorno'].includes(c.status)).length;
       const closedSales = filtered.filter((c: any) => c.status === 'Venda Concluída').length;
       const lostLeads = filtered.filter((c: any) => c.status === 'Lead Perdido').length;
@@ -2512,7 +2563,7 @@ export default function App() {
           c.telefone || c.whatsapp || '-',
           c.email || '-',
           c.origem || '-',
-          c.status || 'Lead',
+          c.status || 'Proposta Enviada',
           c.prioridade || 'Média',
           c.responsavel_atendimento || c.responsavel || '-'
         ];
@@ -2547,9 +2598,9 @@ export default function App() {
       const tProfit = tIncome - tExpense;
       
       const cards = [
-        { label: 'Receita Total', value: `R$ ${tIncome.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [34, 197, 94] },
-        { label: 'Despesas', value: `R$ ${tExpense.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [239, 68, 68] },
-        { label: 'Lucro Líquido', value: `R$ ${tProfit.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [37, 99, 235] }
+        { label: 'Receita Total', value: formatVal(tIncome, tIncome, financialDisplayMode), color: [34, 197, 94] },
+        { label: 'Despesas', value: formatVal(tExpense, tIncome, financialDisplayMode), color: [239, 68, 68] },
+        { label: 'Lucro Líquido', value: formatVal(tProfit, tIncome, financialDisplayMode), color: [37, 99, 235] }
       ];
       
       const tableData = filtered.map((t: any) => [
@@ -2558,7 +2609,7 @@ export default function App() {
         t.categoria || 'Geral',
         t.forma_pagamento || 'PIX',
         new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'}),
-        `R$ ${Number(t.valor).toLocaleString('pt-BR', {minimumFractionDigits:2})}`,
+        formatVal(Number(t.valor), t.type === 'income' ? tIncome : tExpense, financialDisplayMode),
         t.status === 'paid' ? 'Pago' : 'Pendente'
       ]);
 
@@ -2748,7 +2799,7 @@ export default function App() {
       const finTable = fTrans.map((t: any) => [
         t.type === 'income' ? (t.cliente || 'N/A') : (t.descricao || 'N/A'),
         t.type === 'income' ? 'Entrada' : 'Saída',
-        `R$ ${Number(t.valor).toLocaleString('pt-BR', {minimumFractionDigits:2})}`,
+        formatVal(Number(t.valor), t.type === 'income' ? tIncome : tExpense, financialDisplayMode),
         new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'})
       ]);
       
@@ -2766,9 +2817,9 @@ export default function App() {
         title: 'Relatório Completo',
         period: periodStr,
         cards: [
-          { label: 'Receita Total', value: `R$ ${tIncome.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [34, 197, 94] },
-          { label: 'Despesas', value: `R$ ${tExpense.toLocaleString('pt-BR', {minimumFractionDigits:2})}`, color: [239, 68, 68] },
-          { label: 'Clientes Ativos', value: fCli.filter((c:any) => c.status === 'active').length, color: [37, 99, 235] }
+          { label: 'Receita Total', value: formatVal(tIncome, tIncome, financialDisplayMode), color: [34, 197, 94] },
+          { label: 'Despesas', value: formatVal(tExpense, tIncome, financialDisplayMode), color: [239, 68, 68] },
+          { label: 'Leads Ativos', value: fCli.filter((c:any) => c.status === 'active').length, color: [37, 99, 235] }
         ],
         mainTable: {
           title: 'Últimos Lançamentos',
@@ -2777,7 +2828,7 @@ export default function App() {
         },
         additionalTables: [
           {
-            title: 'Base de Clientes',
+            title: 'Base de Leads',
             head: [['Nome', 'Empresa', 'Telefone', 'Status']],
             body: clientTable
           }
@@ -2877,7 +2928,7 @@ export default function App() {
       }
     } catch (err: any) {
       if (err.message === 'Failed to fetch') {
-        console.error('Erro de conexão Supabase:', err);
+        console.warn('Erro de conexão Supabase:', err);
         setAuthError('ERRO DE CONEXÃO: Verifique se o projeto no Supabase está ATIVO (não pausado) ou se sua internet está estável.');
       } else if (err.status === 400 || err.message?.includes('invalid login') || err.message === 'Invalid login credentials') {
         // Log como warning para não sujar o painel com "erros" de usuário inválido
@@ -2898,8 +2949,12 @@ export default function App() {
   };
 
   const logout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) console.error('Erro no logout:', error.message);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) if(error.message?.includes('Failed to fetch')) console.warn('Erro no logout:', error.message); else console.error('Erro no logout:', error.message);
+    } catch (e: any) {
+      if(e?.message?.includes('Failed to fetch')) console.warn('Logout unhandled error:', e); else console.error('Logout unhandled error:', e);
+    }
   };
 
   const handleSave = async (e?: React.FormEvent | string) => {
@@ -2944,6 +2999,8 @@ export default function App() {
       };
       
       delete payload._raw_email;
+      delete payload._raw_descricao;
+      delete payload._raw_titulo;
       delete payload.id;
       delete payload.is_diaria;
 
@@ -2960,7 +3017,7 @@ export default function App() {
           servico: payload.servico || '',
           valor: payload.valor || '',
           rede_social: payload.rede_social || '',
-          status: payload.status || 'Lead',
+          status: payload.status || 'Proposta Enviada',
           cnpj: payload.cnpj || '',
           email_secundario: payload.email_secundario || '',
           telefone_secundario: payload.telefone_secundario || '',
@@ -3009,7 +3066,12 @@ export default function App() {
         const desc = payload.descricao || '';
         const cat = payload.categoria || 'Serviços';
         const forma = payload.forma_pagamento || 'PIX';
-        payload.descricao = JSON.stringify({ descricao: desc, categoria: cat, forma_pagamento: forma });
+        
+        const jsonPayload: any = { descricao: desc, categoria: cat, forma_pagamento: forma };
+        if (payload.fixedExpenseId) jsonPayload.fixedExpenseId = payload.fixedExpenseId;
+        if (payload.period) jsonPayload.period = payload.period;
+        
+        payload.descricao = JSON.stringify(jsonPayload);
         
         const allowedColumns = ['id', 'type', 'descricao', 'valor', 'data', 'status', 'responsavel', 'editor_nome', 'user_id', 'created_at', 'updated_at'];
         Object.keys(payload).forEach(key => {
@@ -3075,7 +3137,7 @@ export default function App() {
         // Explicit fetch after success to guarantee UI update
         fetchCollections(collectionName);
     } catch (err: any) {
-      console.error("Erro ao salvar:", JSON.stringify(err)); alert("Erro ao salvar: " + (err.message || JSON.stringify(err)) + " | Code: " + err.code + " | Details: " + err.details);
+      if(err?.message === "Failed to fetch" || err?.message?.includes("Failed to fetch")) { console.warn("Erro ao salvar:", JSON.stringify(err)); } else { console.error("Erro ao salvar:", JSON.stringify(err)); } alert("Erro ao salvar: " + (err.message || JSON.stringify(err)) + " | Code: " + err.code + " | Details: " + err.details);
       if (err.code === 'PGRST204') {
         setConnectionError(`Erro de Cache/Esquema: O Supabase ainda não reconheceu as novas colunas (como 'hora' ou 'titulo'). Execute o script SQL no dashboard do Supabase e use 'NOTIFY pgrst, "reload schema";'`);
       } else if (err.code === 'PGRST205' || err.code === '42P01') {
@@ -3110,7 +3172,7 @@ export default function App() {
       }
       fetchCollections('transactions');
     } catch (err: any) {
-      console.error("Erro ao atualizar status:", err);
+      if(err?.message === "Failed to fetch") { console.warn("Erro ao atualizar status:", err); } else { console.error("Erro ao atualizar status:", err); }
       alert("Erro ao atualizar status: " + err.message);
     } finally {
       setIsProcessing(false);
@@ -3143,7 +3205,7 @@ export default function App() {
       }
       fetchCollections('appointments');
     } catch (err: any) {
-      console.error("Erro ao atualizar status:", err);
+      if(err?.message === "Failed to fetch") { console.warn("Erro ao atualizar status:", err); } else { console.error("Erro ao atualizar status:", err); }
       alert("Erro ao atualizar status: " + err.message);
     } finally {
       setIsProcessing(false);
@@ -3164,8 +3226,8 @@ export default function App() {
         }
         throw error;
       }
-    } catch (err) {
-      console.error("Erro ao excluir:", err);
+    } catch (err: any) {
+      if(err?.message === "Failed to fetch") { console.warn("Erro ao excluir:", err); } else { console.error("Erro ao excluir:", err); }
     } finally {
       setItemToDelete(null);
       setSidebarOpen(false);
@@ -3372,7 +3434,7 @@ export default function App() {
                     <span className="text-[10px] text-slate-600 font-black uppercase tracking-[0.2em] block">Saldo Operacional</span>
                   </div>
                   <span className={`text-xl font-black font-mono tracking-tighter ${totals.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    R$ {totals.profit.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                    <FinancialDisplay value={totals.profit} base={totals.income} mode={financialDisplayMode} className="inline-flex" tooltip="Margem Operacional" />
                   </span>
                 </div>
               )}
@@ -3406,13 +3468,13 @@ export default function App() {
                       </div>
                       <div>
                         <h4 className="font-black text-lg tracking-tight">ALERTA DE VENCIMENTO: {notif.title}</h4>
-                        <p className="text-sm text-red-400/80 font-bold mt-1 uppercase tracking-widest">
-                          Venceu/Vence em {notif.dueDate.split('-').reverse().join('/')} | Valor: R$ {Number(notif.value).toLocaleString('pt-BR', {minimumFractionDigits:2})}
+                        <p className="text-sm text-red-400/80 font-bold mt-1 uppercase tracking-widest flex items-center gap-1">
+                          Venceu/Vence em {notif.dueDate.split('-').reverse().join('/')} | Valor: <FinancialDisplay value={Number(notif.value)} base={totals.expenses} mode={financialDisplayMode} className="inline-flex text-red-500" />
                         </p>
                       </div>
                     </div>
                     <Button onClick={() => { 
-                      supabase.from('transactions').update({ status: 'paid' }).eq('id', notif.id).then(() => fetchCollections('transactions')) 
+                      supabase.from('transactions').update({ status: 'paid' }).eq('id', notif.id).then(() => fetchCollections('transactions'), (err: any) => { if(err?.message?.includes('Failed to fetch')) console.warn(err); else console.error(err); }); 
                     }} variant="danger" className="shrink-0 bg-red-500 text-slate-950 hover:bg-red-400 uppercase tracking-widest text-[10px] py-2 px-4 shadow-[0_0_15px_rgba(239,68,68,0.5)]">
                       Marcar como Pago
                     </Button>
@@ -3703,7 +3765,7 @@ export default function App() {
                                         
                                         if (!permissions.canEdit('tasks')) return;
                                         const newStatus = isDone ? 'pending' : 'done';
-                                        supabase.from('tasks').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', task.id).then(() => fetchCollections('tasks'));
+                                        supabase.from('tasks').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', task.id).then(() => fetchCollections('tasks'), (err: any) => { if(err?.message?.includes('Failed to fetch')) console.warn(err); else console.error(err); });
                                       }}
                                       disabled={!permissions.canEdit('tasks')}
                                       className={`flex-shrink-0 mt-1 sm:mt-0 w-6 h-6 rounded flex items-center justify-center border-2 transition-all active:scale-90 ${
@@ -3815,8 +3877,8 @@ export default function App() {
                                       alert('Resumo diário registrado com sucesso!');
                                       setSummaryForm({ atividades: '', pendencias: '', dificuldades: '', observacoes: '', prioridades: '' });
                                       fetchCollections('tasks');
-                                    } catch (err) {
-                                      console.error(err);
+                                    } catch (err: any) {
+                                      if(err?.message?.includes('Failed to fetch')) { console.warn(err); } else { console.error(err); }
                                     } finally {
                                       setIsProcessing(false);
                                     }
@@ -3849,6 +3911,8 @@ export default function App() {
                         setIsModalOpen={setIsModalOpen} 
                         setItemToDelete={setItemToDelete}
                         onDownload={() => { setReportType('finance'); setIsReportModalOpen(true); }}
+                        financialDisplayMode={financialDisplayMode}
+                        setFinancialDisplayMode={setFinancialDisplayMode}
                       />
                     )}
 
@@ -3919,24 +3983,15 @@ export default function App() {
                         key: 'cliente', 
                         label: 'Descrição', 
                         render: (_: any, item: any) => (
-                          <div className="flex flex-col">
-                            {item.type === 'income' ? (
-                              <>
-                                <span className="font-bold text-white text-sm">{item.cliente || 'Cliente'}</span>
-                                {item.descricao && (
-                                  <span className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">{item.descricao}</span>
-                                )}
-                              </>
-                            ) : (
-                              <span className="font-bold text-white text-sm">{item.descricao}</span>
-                            )}
-                          </div>
+                          <span className="font-bold text-white text-sm">
+                            {item.cliente || item.descricao || '--'}
+                          </span>
                         )
                       },
                       {
                         key: 'valor', 
                         label: 'Valor', 
-                        render: (val: any, item: any) => <span className={`font-black font-mono tracking-tighter ${item.type === 'income' ? 'text-emerald-400' : 'text-red-400'}`}>R$ {Number(val).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                        render: (val: any, item: any) => <FinancialDisplay value={Number(val)} base={item.type === 'income' ? totals.income : totals.expenses} mode={financialDisplayMode} className={`font-black font-mono tracking-tighter ${item.type === 'income' ? 'text-emerald-400' : 'text-red-400'}`} />
                       },
                       {
                         key: 'data', 
@@ -4056,8 +4111,7 @@ export default function App() {
                            </div>
                            <div className="space-y-2">
                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Status (Funil)</label>
-                             <select value={formData.status || 'Lead'} onChange={(e) => setFormData({...formData, status: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50">
-                               <option value="Lead">Lead</option>
+                             <select value={formData.status || 'Proposta Enviada'} onChange={(e) => setFormData({...formData, status: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50">
                                <option value="Proposta Enviada">Proposta Enviada</option>
                                <option value="Negociação">Negociação</option>
                                <option value="Aguardando Retorno">Aguardando Retorno</option>
@@ -4072,6 +4126,14 @@ export default function App() {
                                <option value="Alta">Alta</option>
                                <option value="Média">Média</option>
                                <option value="Baixa">Baixa</option>
+                             </select>
+                           </div>
+                           <div className="space-y-2">
+                             <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Qualificação</label>
+                             <select value={formData.qualificacao || 'Frio'} onChange={(e) => setFormData({...formData, qualificacao: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50">
+                               <option value="Quente">Quente</option>
+                               <option value="Morno">Morno</option>
+                               <option value="Frio">Frio</option>
                              </select>
                            </div>
                            <div className="space-y-2">
@@ -4103,7 +4165,7 @@ export default function App() {
                            )}
                            <div className="space-y-2 md:col-span-2">
                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Anotações / Histórico Inicial</label>
-                             <textarea placeholder="Ex: Cliente interessado no serviço X, entrou em contato dia..." value={formData.anotacoes || ''} onChange={(e) => setFormData({...formData, anotacoes: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50 h-24 resize-none" />
+                             <textarea placeholder="Ex: Lead interessado no serviço X, entrou em contato dia..." value={formData.anotacoes || ''} onChange={(e) => setFormData({...formData, anotacoes: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50 h-24 resize-none" />
                            </div>
                         </div>
                       </>
