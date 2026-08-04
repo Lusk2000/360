@@ -3540,7 +3540,7 @@ export default function App() {
                   </div>
                   <ListView 
                     title={agendaFilter === 'Concluído' ? "Agendamentos Concluídos" : agendaFilter === 'Cancelado' ? "Agendamentos Cancelados" : "Painel de Agendamento Sincronizado"} 
-                    data={appointments.filter((a: any) => agendaFilter === 'Pendente' ? (a.status !== 'Concluído' && a.status !== 'Cancelado') : a.status === agendaFilter)} 
+                    data={[...appointments.filter((a: any) => agendaFilter === 'Pendente' ? (a.status !== 'Concluído' && a.status !== 'Cancelado') : a.status === agendaFilter)].sort((a: any, b: any) => new Date(a.data).getTime() - new Date(b.data).getTime())} 
                     collName="appointments" 
                     onAdd={() => { setEditingId(null); setFormData({ data: new Date().toISOString().split('T')[0] }); setIsModalOpen(true); }} 
                     permissions={permissions}
@@ -3963,7 +3963,7 @@ export default function App() {
                   <div className="bg-slate-950 rounded-[24px] border border-slate-800 p-6 flex-1 shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-y-auto overflow-x-hidden min-w-0">
                     <ListView 
                         title="Todas as Transações" 
-                        data={transactions} 
+                        data={[...transactions].sort((a: any, b: any) => new Date(b.data).getTime() - new Date(a.data).getTime())} 
                     collName="transactions" 
                       onAdd={() => { setEditingId(null); setFormData({ type: 'income', status: 'pending', data: new Date().toISOString().split('T')[0] }); setIsModalOpen(true); setIsHistoryModalOpen(false); }} 
                       permissions={permissions}

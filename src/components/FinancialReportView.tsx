@@ -350,7 +350,7 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/50 text-sm">
-                  {transactions.sort((a: any, b: any) => new Date(b.data).getTime() - new Date(a.data).getTime()).map((t: any) => (
+                  {[...transactions].sort((a: any, b: any) => new Date(b.data).getTime() - new Date(a.data).getTime()).map((t: any) => (
                     <tr key={t.id} className="hover:bg-slate-800/30 transition-colors">
                       <td className="p-4 text-slate-400 font-mono text-xs">{new Date(t.data).toLocaleDateString('pt-BR', {timeZone:'UTC'})}</td>
                       <td className="p-4">
