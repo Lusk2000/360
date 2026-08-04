@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { generateExecutiveReport } from '../utils/pdfGenerator';
 import { getFixedExpensesTasks, parseFixedExpense } from '../utils/fixedExpenses';
-import { Download, ArrowUpCircle, Plus, DollarSign, TrendingUp, TrendingDown, Activity, FileText, PieChart, BarChart3, CreditCard, Edit3, Trash2, CalendarIcon, CheckCircle, X } from 'lucide-react';
+import { Search, Download, ArrowUpCircle, Plus, DollarSign, TrendingUp, TrendingDown, Activity, FileText, PieChart, BarChart3, CreditCard, Edit3, Trash2, CalendarIcon, CheckCircle, X } from 'lucide-react';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell, Legend } from 'recharts';
 import { FinancialDisplay, DisplayModeToggle } from './FinancialDisplay';
 
@@ -82,6 +82,8 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
   };
 
   const [activeTab, setActiveTab] = useState('resumo');
+  const [transactionSearch, setTransactionSearch] = useState('');
+  const [transactionTypeFilter, setTransactionTypeFilter] = useState('all');
   const [isFixedExpenseModalOpen, setIsFixedExpenseModalOpen] = useState(false);
   const [fixedExpenseForm, setFixedExpenseForm] = useState<any>({});
   const [isProcessing, setIsProcessing] = useState(false);
@@ -332,8 +334,33 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
       {activeTab === 'movimentacoes' && (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <Card className="p-0 overflow-hidden border border-slate-800">
-            <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900/80">
-              <h3 className="text-sm font-bold text-slate-300 uppercase tracking-widest flex items-center gap-2"><FileText size={16} className="text-emerald-500" /> Movimentação Financeira Detalhada</h3>
+            <div className="p-5 border-b border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900/80">
+              <h3 className="text-sm font-bold text-slate-300 uppercase tracking-widest flex items-center gap-2">
+                <FileText size={16} className="text-emerald-500" /> Movimentação Financeira Detalhada
+              </h3>
+              <div className="flex flex-col sm:flex-row flex-wrap gap-4 w-full sm:w-auto items-center">
+                <div className="flex bg-slate-950/50 rounded-lg p-1 border border-slate-800 w-full sm:w-auto">
+                  <button onClick={() => setTransactionTypeFilter('all')} className={`flex-1 sm:flex-none px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all ${transactionTypeFilter === 'all' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                    Todas
+                  </button>
+                  <button onClick={() => setTransactionTypeFilter('income')} className={`flex-1 sm:flex-none px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all ${transactionTypeFilter === 'income' ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-500 hover:text-emerald-500/50'}`}>
+                    Entradas
+                  </button>
+                  <button onClick={() => setTransactionTypeFilter('expense')} className={`flex-1 sm:flex-none px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all ${transactionTypeFilter === 'expense' ? 'bg-red-500/20 text-red-400' : 'text-slate-500 hover:text-red-500/50'}`}>
+                    Saídas
+                  </button>
+                </div>
+                <div className="relative w-full sm:w-64">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input 
+                    type="text" 
+                    placeholder="Buscar movimentação..." 
+                    value={transactionSearch}
+                    onChange={(e) => setTransactionSearch(e.target.value)}
+                    className="w-full bg-slate-950/50 border border-slate-800 rounded-lg pl-9 pr-4 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500/50 transition-all placeholder:text-slate-600"
+                  />
+                </div>
+              </div>
             </div>
             <div className="overflow-x-auto w-full max-w-full">
               <table className="w-full text-left border-collapse min-w-[900px]">
@@ -350,7 +377,12 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/50 text-sm">
-                  {[...transactions].sort((a: any, b: any) => new Date(b.data).getTime() - new Date(a.data).getTime()).map((t: any) => (
+                  {transactions.filter((t: any) => {
+                    if (transactionTypeFilter !== 'all' && t.type !== transactionTypeFilter) return false;
+                    if (!transactionSearch) return true;
+                    const s = transactionSearch.toLowerCase();
+                    return (t.cliente?.toLowerCase().includes(s) || t.descricao?.toLowerCase().includes(s) || t.categoria?.toLowerCase().includes(s));
+                  }).sort((a: any, b: any) => new Date(b.data).getTime() - new Date(a.data).getTime()).map((t: any) => (
                     <tr key={t.id} className="hover:bg-slate-800/30 transition-colors">
                       <td className="p-4 text-slate-400 font-mono text-xs">{new Date(t.data).toLocaleDateString('pt-BR', {timeZone:'UTC'})}</td>
                       <td className="p-4">

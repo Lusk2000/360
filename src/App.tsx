@@ -2141,6 +2141,7 @@ export default function App() {
   const [dailyReports, setDailyReports] = useState<any[]>([]);
   const [pontos, setPontos] = useState<any[]>([]);
   const [agendaFilter, setAgendaFilter] = useState('Pendente');
+  const [agendaSearch, setAgendaSearch] = useState('');
   const [taskFilterPerson, setTaskFilterPerson] = useState(currentUserProfile);
   const [taskFilterStatus, setTaskFilterStatus] = useState('Pendentes');
   const [taskSearch, setTaskSearch] = useState('');
@@ -3527,20 +3528,40 @@ export default function App() {
             >
               {activeTab === 'agenda' && (
                 <div className="space-y-6">
-                  <div className="flex flex-wrap gap-4 border-b border-slate-800 pb-4">
-                    <button onClick={() => setAgendaFilter('Pendente')} className={`flex-1 sm:flex-none pb-2 px-4 sm:px-6 transition-all flex items-center justify-center ${agendaFilter === 'Pendente' ? 'text-amber-500 border-b-2 border-amber-500' : 'text-slate-600 hover:text-amber-500/50'}`} title="Pendentes">
-                      <Clock size={22} />
-                    </button>
-                    <button onClick={() => setAgendaFilter('Concluído')} className={`flex-1 sm:flex-none pb-2 px-4 sm:px-6 transition-all flex items-center justify-center ${agendaFilter === 'Concluído' ? 'text-emerald-500 border-b-2 border-emerald-500' : 'text-slate-600 hover:text-emerald-500/50'}`} title="Concluídos">
-                      <CheckCircle size={22} />
-                    </button>
-                    <button onClick={() => setAgendaFilter('Cancelado')} className={`flex-1 sm:flex-none pb-2 px-4 sm:px-6 transition-all flex items-center justify-center ${agendaFilter === 'Cancelado' ? 'text-red-500 border-b-2 border-red-500' : 'text-slate-600 hover:text-red-500/50'}`} title="Cancelados">
-                      <X size={22} />
-                    </button>
+                  <div className="flex flex-col sm:flex-row flex-wrap gap-4 border-b border-slate-800 pb-4 items-center">
+                    <div className="flex flex-wrap gap-4 w-full sm:w-auto">
+                      <button onClick={() => setAgendaFilter('Pendente')} className={`flex-1 sm:flex-none pb-2 px-4 sm:px-6 transition-all flex items-center justify-center ${agendaFilter === 'Pendente' ? 'text-amber-500 border-b-2 border-amber-500' : 'text-slate-600 hover:text-amber-500/50'}`} title="Pendentes">
+                        <Clock size={22} />
+                      </button>
+                      <button onClick={() => setAgendaFilter('Concluído')} className={`flex-1 sm:flex-none pb-2 px-4 sm:px-6 transition-all flex items-center justify-center ${agendaFilter === 'Concluído' ? 'text-emerald-500 border-b-2 border-emerald-500' : 'text-slate-600 hover:text-emerald-500/50'}`} title="Concluídos">
+                        <CheckCircle size={22} />
+                      </button>
+                      <button onClick={() => setAgendaFilter('Cancelado')} className={`flex-1 sm:flex-none pb-2 px-4 sm:px-6 transition-all flex items-center justify-center ${agendaFilter === 'Cancelado' ? 'text-red-500 border-b-2 border-red-500' : 'text-slate-600 hover:text-red-500/50'}`} title="Cancelados">
+                        <X size={22} />
+                      </button>
+                    </div>
+                    <div className="relative w-full sm:w-64 ml-auto">
+                      <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                      <input 
+                        type="text" 
+                        placeholder="Buscar compromisso..." 
+                        value={agendaSearch}
+                        onChange={(e) => setAgendaSearch(e.target.value)}
+                        className="w-full bg-slate-950/50 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-purple-500/50 transition-all placeholder:text-slate-600"
+                      />
+                    </div>
                   </div>
                   <ListView 
                     title={agendaFilter === 'Concluído' ? "Agendamentos Concluídos" : agendaFilter === 'Cancelado' ? "Agendamentos Cancelados" : "Painel de Agendamento Sincronizado"} 
-                    data={[...appointments.filter((a: any) => agendaFilter === 'Pendente' ? (a.status !== 'Concluído' && a.status !== 'Cancelado') : a.status === agendaFilter)].sort((a: any, b: any) => new Date(a.data).getTime() - new Date(b.data).getTime())} 
+                    data={appointments.filter((a: any) => {
+                      const matchesFilter = agendaFilter === 'Pendente' ? (a.status !== 'Concluído' && a.status !== 'Cancelado') : a.status === agendaFilter;
+                      if (!matchesFilter) return false;
+                      if (agendaSearch) {
+                        const s = agendaSearch.toLowerCase();
+                        return (a.titulo_evento?.toLowerCase().includes(s) || a.titulo?.toLowerCase().includes(s) || a.nome?.toLowerCase().includes(s) || a.descricao?.toLowerCase().includes(s) || a.localizacao?.toLowerCase().includes(s));
+                      }
+                      return true;
+                    }).sort((a: any, b: any) => new Date(a.data || 0).getTime() - new Date(b.data || 0).getTime())}
                     collName="appointments" 
                     onAdd={() => { setEditingId(null); setFormData({ data: new Date().toISOString().split('T')[0] }); setIsModalOpen(true); }} 
                     permissions={permissions}
@@ -3963,7 +3984,7 @@ export default function App() {
                   <div className="bg-slate-950 rounded-[24px] border border-slate-800 p-6 flex-1 shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-y-auto overflow-x-hidden min-w-0">
                     <ListView 
                         title="Todas as Transações" 
-                        data={[...transactions].sort((a: any, b: any) => new Date(b.data).getTime() - new Date(a.data).getTime())} 
+                        data={transactions} 
                     collName="transactions" 
                       onAdd={() => { setEditingId(null); setFormData({ type: 'income', status: 'pending', data: new Date().toISOString().split('T')[0] }); setIsModalOpen(true); setIsHistoryModalOpen(false); }} 
                       permissions={permissions}
