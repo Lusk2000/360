@@ -485,6 +485,9 @@ const ListView = ({ title, data, columns, collName, onAdd, permissions, handleTo
         <table className="w-full text-left border-separate border-spacing-0 min-w-[800px]">
           <thead>
             <tr className="bg-slate-950">
+              {collName === 'appointments' && permissions.canEdit('agenda') && (
+                <th className="px-6 py-8 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800/50 w-24">Status</th>
+              )}
               {columns.map((col: any) => <th key={col.key} className="px-10 py-8 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800/50">{col.label}</th>)}
               <th className="px-10 py-8 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800/50">Responsável</th>
               <th className="px-10 py-8 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right whitespace-nowrap border-b border-slate-800/50">Ações</th>
@@ -503,6 +506,14 @@ const ListView = ({ title, data, columns, collName, onAdd, permissions, handleTo
                 }}
                 className={`group hover:bg-emerald-500/[0.03] transition-all duration-300 ${(collName === 'tasks' || collName === 'appointments') ? 'cursor-pointer' : ''}`}
               >
+                {collName === 'appointments' && permissions.canEdit('agenda') && (
+                  <td className="px-6 py-7">
+                    <div className="flex gap-2">
+                        <button onClick={(e) => { e.stopPropagation(); handleSetAgendaStatus && handleSetAgendaStatus(item, item.status === 'Concluído' ? 'Pendente' : 'Concluído'); }} className={`p-2.5 rounded-xl border transition-all ${item.status === 'Concluído' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'bg-slate-950 border-slate-800 text-slate-600 hover:text-emerald-500 hover:border-emerald-500'}`} title={item.status === 'Concluído' ? 'Marcar como Pendente' : 'Marcar como Concluído'}><Check size={18} /></button>
+                        <button onClick={(e) => { e.stopPropagation(); handleSetAgendaStatus && handleSetAgendaStatus(item, item.status === 'Cancelado' ? 'Pendente' : 'Cancelado'); }} className={`p-2.5 rounded-xl border transition-all ${item.status === 'Cancelado' ? 'bg-red-500/20 border-red-500 text-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'bg-slate-950 border-slate-800 text-slate-600 hover:text-red-500 hover:border-red-500'}`} title={item.status === 'Cancelado' ? 'Marcar como Pendente' : 'Marcar como Cancelado'}><X size={18} /></button>
+                    </div>
+                  </td>
+                )}
                 {columns.map((col: any, colIdx: number) => (
                   <td key={colIdx} className="px-10 py-7 text-xs font-bold text-slate-400 group-hover:text-emerald-50 transition-colors">
                     {col.render ? col.render(item[col.key], item) : item[col.key]}
@@ -520,12 +531,6 @@ const ListView = ({ title, data, columns, collName, onAdd, permissions, handleTo
                 </td>
                 <td className="px-10 py-7 text-right">
                   <div className="flex justify-end gap-3 translate-x-2 opacity-0 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-500">
-                    {collName === 'appointments' && permissions.canEdit('agenda') && (
-                      <>
-                        <button onClick={(e) => { e.stopPropagation(); handleSetAgendaStatus && handleSetAgendaStatus(item, item.status === 'Concluído' ? 'Pendente' : 'Concluído'); }} className={`p-2.5 rounded-xl border transition-all ${item.status === 'Concluído' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'bg-slate-950 border-slate-800 text-slate-600 hover:text-emerald-500 hover:border-emerald-500'}`} title={item.status === 'Concluído' ? 'Marcar como Pendente' : 'Marcar como Concluído'}><Check size={18} /></button>
-                        <button onClick={(e) => { e.stopPropagation(); handleSetAgendaStatus && handleSetAgendaStatus(item, item.status === 'Cancelado' ? 'Pendente' : 'Cancelado'); }} className={`p-2.5 rounded-xl border transition-all ${item.status === 'Cancelado' ? 'bg-red-500/20 border-red-500 text-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'bg-slate-950 border-slate-800 text-slate-600 hover:text-red-500 hover:border-red-500'}`} title={item.status === 'Cancelado' ? 'Marcar como Pendente' : 'Marcar como Cancelado'}><X size={18} /></button>
-                      </>
-                    )}
                     {collName === 'transactions' && item.type === 'income' && permissions.canEdit('financial_control') && (
                       <button onClick={() => handleToggleStatus(item)} className={`p-2.5 rounded-xl border transition-all ${item.status === 'received' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'bg-slate-950 border-slate-800 text-slate-600 hover:text-emerald-500 hover:border-emerald-500'}`} title="Marcar como Recebido"><Check size={18} /></button>
                     )}
