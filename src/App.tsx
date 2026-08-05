@@ -23,6 +23,19 @@ import {
 } from 'recharts';
 import { supabase } from './lib/supabase';
 
+export const getBRTDate = (date: Date | string | number = new Date()) => {
+  return new Date(new Date(date).toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+};
+
+export const getBRTDateString = (date: Date | string | number = new Date()) => {
+  const brtDate = getBRTDate(date);
+  const yyyy = brtDate.getFullYear();
+  const mm = String(brtDate.getMonth() + 1).padStart(2, '0');
+  const dd = String(brtDate.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+
 export const formatVal = (val: number, base: number, mode: 'both' | 'currency' | 'percentage') => {
   if (mode === 'currency') return `R$ ${val.toLocaleString('pt-BR', {minimumFractionDigits:2})}`;
   const pct = base > 0 ? ((Math.abs(val) / base) * 100).toFixed(1) + '%' : '0.0%';
@@ -259,7 +272,7 @@ const navItems = [
 // --- Sub-componentes do Dashboard e Visões ---
 
 const AgendaView = ({ currentMonth, setCurrentMonth, permissions, calendarDays, appointments, setFormData, setEditingId, setIsModalOpen, setItemToDelete, isSystemAdmin, onDownload }: any) => {
-  const [selectedDay, setSelectedDay] = useState<string | null>(new Date().toISOString().split('T')[0]);
+  const [selectedDay, setSelectedDay] = useState<string | null>(getBRTDateString());
 
   return (
     <div className="space-y-4 sm:space-y-8 w-full max-w-full min-w-0">
@@ -283,7 +296,7 @@ const AgendaView = ({ currentMonth, setCurrentMonth, permissions, calendarDays, 
             </Button>
           )}
           {permissions.canEdit('agenda') && (
-            <Button onClick={() => { setEditingId(null); setFormData({ data: new Date().toISOString().split('T')[0] }); setIsModalOpen(true); }} className="py-2.5 px-5 ml-auto lg:ml-0 bg-purple-500 hover:bg-purple-400 text-slate-950 font-black uppercase text-[10px] tracking-widest rounded-xl shadow-[0_0_15px_rgba(168,85,247,0.3)] transition-all hover:scale-105 active:scale-95"><Plus size={16} /> Novo Agendamento</Button>
+            <Button onClick={() => { setEditingId(null); setFormData({ data: getBRTDateString() }); setIsModalOpen(true); }} className="py-2.5 px-5 ml-auto lg:ml-0 bg-purple-500 hover:bg-purple-400 text-slate-950 font-black uppercase text-[10px] tracking-widest rounded-xl shadow-[0_0_15px_rgba(168,85,247,0.3)] transition-all hover:scale-105 active:scale-95"><Plus size={16} /> Novo Agendamento</Button>
           )}
         </div>
       </div>
@@ -301,7 +314,7 @@ const AgendaView = ({ currentMonth, setCurrentMonth, permissions, calendarDays, 
               const dayAppointments = appointments.filter((a: any) => a.data === d.date);
               const dayFeriados = FERIADOS_2026.filter(f => f.data === d.date);
               const allEvents = [...dayFeriados, ...dayAppointments];
-              const isToday = d.date === new Date().toISOString().split('T')[0];
+              const isToday = d.date === getBRTDateString();
               const isSelected = selectedDay === d.date;
               
               return (
@@ -594,7 +607,7 @@ const ReportsView = ({ clients, tasks, appointments, transactions, dailyReports,
   ];
 
   const financeData = transactions.reduce((acc: any[], t: any) => {
-    const date = new Date(t.data).toLocaleDateString('pt-BR', { month: 'short', day: 'numeric' });
+    const date = new Date(t.data).toLocaleDateString('pt-BR', { month: 'short', day: 'numeric', timeZone: 'UTC' });
     const existing = acc.find(item => item.date === date);
     const value = Number(t.valor);
     if (existing) {
@@ -656,7 +669,7 @@ const ReportsView = ({ clients, tasks, appointments, transactions, dailyReports,
       finalSummary: `Lucro Bruto: Fórmula: Total de Entradas - Total de Saídas. Representa o valor que sobra após descontar todas as despesas das receitas.
 
 Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissões - Custos Extras. Representa o lucro real da empresa após todos os descontos e custos. Caso não existam custos adicionais, o Lucro Líquido deverá ser igual ao Lucro Bruto.`,
-      filename: `relatorio_financeiro_${new Date().toISOString().split('T')[0]}.pdf`
+      filename: `relatorio_financeiro_${getBRTDateString()}.pdf`
     });
   };
 
@@ -763,7 +776,7 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
         body: prodTable
       },
       additionalTables,
-      filename: `relatorio_executivo_${new Date().toISOString().split('T')[0]}.pdf`
+      filename: `relatorio_executivo_${getBRTDateString()}.pdf`
     });
   };
 
@@ -920,7 +933,7 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
                     <td className="px-6 py-4 font-mono text-slate-300">
                       <FinancialDisplay value={Number(t.valor)} base={t.type === 'income' ? totalIncome : totalExpense} mode={financialDisplayMode} className="inline-flex" />
                     </td>
-                    <td className="px-6 py-4 text-slate-400">{new Date(t.data).toLocaleDateString('pt-BR')}</td>
+                    <td className="px-6 py-4 text-slate-400">{new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</td>
                   </tr>
                 ))}
                 {transactions.length === 0 && (
@@ -995,7 +1008,7 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
             <Card className="p-5 border-slate-800 bg-slate-900/50 flex flex-col justify-center">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Novos Leads (Mês)</span>
               <span className="text-3xl font-black text-white">
-                {clients.filter((c: any) => new Date(c.created_at).getMonth() === new Date().getMonth()).length}
+                {clients.filter((c: any) => getBRTDate(c.created_at).getMonth() === getBRTDate().getMonth()).length}
               </span>
             </Card>
             <Card className="p-5 border-slate-800 bg-slate-900/50 flex flex-col justify-center">
@@ -1101,7 +1114,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
   const [showManualAdd, setShowManualAdd] = React.useState(false);
   const [manualAddData, setManualAddData] = React.useState({
     tipo: 'Entrada',
-    data: new Date().toISOString().split('T')[0],
+    data: getBRTDateString(),
     hora: '08:00',
     usuario: currentUserProfile,
     justificativa: ''
@@ -1113,13 +1126,13 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
     hora_inicio_almoco: '12:00',
     tolerancia_inicio_almoco_antes: 15,
     tolerancia_inicio_almoco_depois: 15,
-    hora_fim_almoco: '13:00',
+    hora_fim_almoco: '13:30',
     tolerancia_fim_almoco_antes: 15,
     tolerancia_fim_almoco_depois: 15,
     hora_saida: '18:00',
     tolerancia_saida_antes: 15,
     tolerancia_saida_depois: 15,
-    duracao_almoco: 60,
+    duracao_almoco: 90,
   });
 
   const baseConfigPonto = React.useMemo(() => {
@@ -1131,7 +1144,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
       hora_inicio_almoco: '12:00',
       tolerancia_inicio_almoco_antes: 15,
       tolerancia_inicio_almoco_depois: 15,
-      hora_fim_almoco: '13:00',
+      hora_fim_almoco: '13:30',
       tolerancia_fim_almoco_antes: 15,
       tolerancia_fim_almoco_depois: 15,
       hora_saida: '18:00',
@@ -1264,10 +1277,10 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
     } else if (tipo === 'Retorno Almoço') {
       expectedTime = configPonto.hora_fim_almoco || '13:00';
       if (configPonto.duracao_almoco) {
-        const todayStr = new Date(time.getTime() - (time.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+        const todayStr = getBRTDateString(time);
         const saidaAlmoco = pontos.find((p: any) => p.usuario_email === currentUserProfile && p.tipo === 'Saída Almoço' && new Date(p.data_hora).toISOString().startsWith(todayStr));
         if (saidaAlmoco) {
-          const saidaTime = new Date(saidaAlmoco.data_hora);
+          const saidaTime = getBRTDate(saidaAlmoco.data_hora);
           const expectedReturnMinutes = saidaTime.getHours() * 60 + saidaTime.getMinutes() + Number(configPonto.duracao_almoco);
           const expectedH = Math.floor(expectedReturnMinutes / 60).toString().padStart(2, '0');
           const expectedM = (expectedReturnMinutes % 60).toString().padStart(2, '0');
@@ -1287,7 +1300,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
     return currentMinutes < (expectedMinutes - tolAntes) || currentMinutes > (expectedMinutes + tolDepois);
   };
   const initiatePonto = (tipo: string) => {
-    if (isOutsideTolerance(tipo, new Date())) {
+    if (isOutsideTolerance(tipo, getBRTDate())) {
       setPendingPonto(tipo);
       setJustificativa('');
     } else {
@@ -1465,15 +1478,15 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
       const baseTipo = parts[0];
       const justificativaValue = parts.length > 1 ? parts[1] : null;
 
-      let dateObj = new Date(p.data_hora);
+      let dateObj = getBRTDate(p.data_hora);
       // Shifts overnight punches (not Entrada) before 07:00 AM to the previous day
       if (baseTipo !== 'Entrada' && dateObj.getHours() < 7) {
           dateObj = new Date(dateObj.getTime() - 24 * 60 * 60 * 1000);
       }
 
-      const dateStr = dateObj.toLocaleDateString('pt-BR');
-      const timeStr = new Date(p.data_hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-      const dayOfWeek = dateObj.toLocaleDateString('pt-BR', { weekday: 'short' });
+      const dateStr = new Date(p.data_hora).toLocaleDateString('pt-BR', {timeZone: 'America/Sao_Paulo'});
+      const timeStr = new Date(p.data_hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+      const dayOfWeek = new Date(p.data_hora).toLocaleDateString('pt-BR', { weekday: 'short', timeZone: 'America/Sao_Paulo' });
       
       if (!groups[user]) groups[user] = {};
       if (!groups[user][dateStr]) {
@@ -1517,16 +1530,24 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
            return diff;
        };
 
-       const snapTime = (actual: number | null, expected: number | null) => {
-           if (actual === null || expected === null) return actual;
+       const getDiff = (actual: number, expected: number) => {
            let diff = actual - expected;
            if (diff < -720) diff += 1440;
            if (diff > 720) diff -= 1440;
-           if (Math.abs(diff) <= 5) return expected;
-           return actual;
+           return diff;
        };
 
+              const tolEntAntes = uConfig.tolerancia_entrada_antes || 5;
+       const tolEntDepois = uConfig.tolerancia_entrada_depois || 5;
+       const tolSaidaAlmocoAntes = uConfig.tolerancia_inicio_almoco_antes || 5;
+       const tolSaidaAlmocoDepois = uConfig.tolerancia_inicio_almoco_depois || 5;
+       const tolRetornoAlmocoAntes = uConfig.tolerancia_fim_almoco_antes || 5;
+       const tolRetornoAlmocoDepois = uConfig.tolerancia_fim_almoco_depois || 5;
+       const tolSaidaAntes = uConfig.tolerancia_saida_antes || 5;
+       const tolSaidaDepois = uConfig.tolerancia_saida_depois || 5;
+
        let expectedTotal = timeDiff(expEntrada, expSaidaAlmoco) + timeDiff(expRetornoAlmoco, expSaida);
+
        if (expSaidaAlmoco === null && expRetornoAlmoco === null) {
            expectedTotal = timeDiff(expEntrada, expSaida);
        }
@@ -1538,48 +1559,134 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
           const t3_raw = day['Retorno Almoço'] ? timeToMin(day['Retorno Almoço'].time) : null;
           const t4_raw = day['Saída'] ? timeToMin(day['Saída'].time) : null;
           
-          const t1 = snapTime(t1_raw, expEntrada);
-          const t2 = snapTime(t2_raw, expSaidaAlmoco);
-          const t3 = snapTime(t3_raw, expRetornoAlmoco);
-          const t4 = snapTime(t4_raw, expSaida);
-          
-          let worked = 0;
+          let extra = 0;
+          let delay = 0;
           let hasIncomplete = false;
+          let extraDetails: string[] = [];
+          let delayDetails: string[] = [];
+
+          const addExtra = (min: number, reason: string) => { 
+              extra += min; 
+              extraDetails.push(`+${minToTime(min)}: ${reason}`); 
+          };
+          const addDelay = (min: number, reason: string) => { 
+              delay += min; 
+              delayDetails.push(`+${minToTime(min)}: ${reason}`); 
+          };
 
           if (!t1_raw && !t2_raw && !t3_raw && !t4_raw) {
               day.workedMin = 0;
               day.extraMin = 0;
               day.delayMin = 0;
+              day.extraDetails = [];
+              day.delayDetails = [];
               return;
           }
 
-          if (t1 !== null && t2 !== null && t3 !== null && t4 !== null) {
-              worked = timeDiff(t1, t2) + timeDiff(t3, t4);
-          } else if (t1 !== null && t4 !== null && t2 === null && t3 === null) {
-              // Sem registro de saída e retorno do almoço: o período de almoço será considerado como tempo trabalhado (hora extra)
-              worked = timeDiff(t1, t4);
-          } else {
-              if (t1 !== null && t2 !== null) {
-                 worked += timeDiff(t1, t2);
-              } else if (t1 !== null || t2 !== null) {
-                 hasIncomplete = true;
+          if (expSaidaAlmoco === null && expRetornoAlmoco === null) {
+              if (t1_raw !== null && t4_raw !== null) {
+                  let d1 = getDiff(t1_raw, expEntrada);
+                  if (d1 < -tolEntAntes) addExtra(Math.abs(d1), 'Entrada antecipada');
+                  if (d1 > tolEntDepois) addDelay(d1, 'Entrada em atraso');
+
+                  let d4 = getDiff(t4_raw, expSaida);
+                  if (d4 > tolSaidaDepois) addExtra(d4, 'Saída além do horário');
+                  if (d4 < -tolSaidaAntes) addDelay(Math.abs(d4), 'Saída antecipada');
+              } else {
+                  hasIncomplete = true;
+                  addDelay(expectedTotal, 'Dia incompleto sem almoço');
               }
-              if (t3 !== null && t4 !== null) {
-                 worked += timeDiff(t3, t4);
-              } else if (t3 !== null || t4 !== null) {
-                 hasIncomplete = true;
+          } else {
+              const expectedMorning = timeDiff(expEntrada, expSaidaAlmoco);
+              const expectedAfternoon = timeDiff(expRetornoAlmoco, expSaida);
+              const lunchDuration = uConfig.duracao_almoco ? Number(uConfig.duracao_almoco) : timeDiff(expSaidaAlmoco, expRetornoAlmoco);
+
+              if (t1_raw !== null && t4_raw !== null && t2_raw === null && t3_raw === null) {
+                  // Sem registro de saída e retorno do almoço: o período de almoço será considerado como tempo trabalhado (hora extra)
+                  let d1 = getDiff(t1_raw, expEntrada);
+                  if (d1 < -tolEntAntes) addExtra(Math.abs(d1), 'Entrada antecipada');
+                  if (d1 > tolEntDepois) addDelay(d1, 'Entrada em atraso');
+
+                  let d4 = getDiff(t4_raw, expSaida);
+                  if (d4 > tolSaidaDepois) addExtra(d4, 'Saída além do horário');
+                  if (d4 < -tolSaidaAntes) addDelay(Math.abs(d4), 'Saída antecipada');
+
+                  // addExtra(lunchDuration, 'Almoço não registrado'); // Removido para assumir almoço padrão conforme config
+              } else {
+                  if (t1_raw !== null && t4_raw !== null) {
+                      let d1 = getDiff(t1_raw, expEntrada);
+                      if (d1 < -tolEntAntes) addExtra(Math.abs(d1), 'Entrada antecipada');
+                      if (d1 > tolEntDepois) addDelay(d1, 'Entrada em atraso');
+
+                      let d4 = getDiff(t4_raw, expSaida);
+                      if (d4 > tolSaidaDepois) addExtra(d4, 'Saída além do horário');
+                      if (d4 < -tolSaidaAntes) addDelay(Math.abs(d4), 'Saída antecipada');
+
+                      if (t2_raw === null || t3_raw === null) {
+                          // Almoço com apenas um registro: conta como atraso
+                          if (t2_raw !== null) {
+                              let d2 = getDiff(t2_raw, expSaidaAlmoco);
+                              if (d2 > tolSaidaAlmocoDepois) addExtra(d2, 'Saída almoço além do horário');
+                              if (d2 < -tolSaidaAlmocoAntes) addDelay(Math.abs(d2), 'Saída almoço antecipada');
+                          }
+                          if (t3_raw !== null) {
+                              let d3 = getDiff(t3_raw, expRetornoAlmoco);
+                              if (d3 < -tolRetornoAlmocoAntes) addExtra(Math.abs(d3), 'Retorno almoço antecipado');
+                              if (d3 > tolRetornoAlmocoDepois) addDelay(d3, 'Retorno almoço em atraso');
+                          }
+                          // addDelay(lunchDuration, 'Almoço incompleto'); // Removido para não penalizar duplamente, usando a regra padrão do sistema.
+                          hasIncomplete = true;
+                      } else {
+                          const actualLunchDuration = timeDiff(t2_raw, t3_raw);
+                          if (actualLunchDuration < lunchDuration) {
+                              addExtra(lunchDuration - actualLunchDuration, 'Intervalo de almoço reduzido');
+                          } else if (actualLunchDuration > lunchDuration) {
+                              addDelay(actualLunchDuration - lunchDuration, 'Intervalo de almoço excedido');
+                          }
+                      }
+                  } else {
+                      hasIncomplete = true;
+                      if (t1_raw !== null && t2_raw !== null && t3_raw === null && t4_raw === null) {
+                          let d1 = getDiff(t1_raw, expEntrada);
+                          if (d1 < -tolEntAntes) addExtra(Math.abs(d1), 'Entrada antecipada');
+                          if (d1 > tolEntDepois) addDelay(d1, 'Entrada em atraso');
+
+                          let d2 = getDiff(t2_raw, expSaidaAlmoco);
+                          if (d2 > tolSaidaAlmocoDepois) addExtra(d2, 'Saída almoço além do horário');
+                          if (d2 < -tolSaidaAlmocoAntes) addDelay(Math.abs(d2), 'Saída almoço antecipada');
+                          
+                          addDelay(expectedAfternoon, 'Falta à tarde');
+                      } else if (t1_raw === null && t2_raw === null && t3_raw !== null && t4_raw !== null) {
+                          let d3 = getDiff(t3_raw, expRetornoAlmoco);
+                          if (d3 < -tolRetornoAlmocoAntes) addExtra(Math.abs(d3), 'Retorno almoço antecipado');
+                          if (d3 > tolRetornoAlmocoDepois) addDelay(d3, 'Retorno almoço em atraso');
+
+                          let d4 = getDiff(t4_raw, expSaida);
+                          if (d4 > tolSaidaDepois) addExtra(d4, 'Saída além do horário');
+                          if (d4 < -tolSaidaAntes) addDelay(Math.abs(d4), 'Saída antecipada');
+
+                          addDelay(expectedMorning, 'Falta de manhã');
+                      } else {
+                          addDelay(expectedTotal, 'Falta o dia todo ou marcações inconsistentes');
+                      }
+                  }
               }
           }
 
-          day.workedMin = worked; // always calculate, even if incomplete, to generate delay
+          let worked = expectedTotal - delay + extra;
+          if (worked < 0) worked = 0;
+
+          day.workedMin = worked;
           day.hasIncomplete = hasIncomplete;
-          day.extraMin = (day.workedMin !== null && day.workedMin > expectedTotal) ? (day.workedMin - expectedTotal) : 0;
-          day.delayMin = (day.workedMin !== null && day.workedMin < expectedTotal) ? (expectedTotal - day.workedMin) : 0;
+          day.extraMin = extra;
+          day.delayMin = delay;
+          day.extraDetails = extraDetails;
+          day.delayDetails = delayDetails;
        });
     });
     return groups;
   }, [displayPontos, baseConfigPonto]);
-  const exportarFolhaPontoPDF = async () => {
+    const exportarFolhaPontoPDF = async () => {
     try {
       const [jspdf, autoTableModule] = await Promise.all([
         import('jspdf'),
@@ -1587,143 +1694,278 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
       ]);
       const jsPDF = jspdf.default;
       const autoTable = autoTableModule.default;
-      const doc = new jsPDF();
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('pt-BR');
-    let isFirstPage = true;
-
-    Object.entries(groupedPontos).forEach(([userName, dates]) => {
-      if (!isFirstPage) {
-        doc.addPage();
-      }
-      isFirstPage = false;
+      const doc = new jsPDF({ orientation: 'landscape' });
       
-      // Header
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(20);
-      doc.setTextColor(37, 99, 235); // Blue
-      doc.text('FREITAS HUB AGÊNCIA', 105, 20, { align: 'center' });
-      doc.setFontSize(16);
-      doc.setTextColor(15, 23, 42);
-      doc.text('FOLHA DE PONTO INDIVIDUAL', 105, 30, { align: 'center' });
-      
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Colaborador: ${userName}`, 14, 45);
-      
-      const sortedDays = Object.values(dates).sort((a: any, b: any) => a.dateObj.getTime() - b.dateObj.getTime());
-      
-      let startDate = '-';
-      let endDate = '-';
-      if (sortedDays.length > 0) {
-          startDate = sortedDays[0].dateStr;
-          endDate = sortedDays[sortedDays.length - 1].dateStr;
-      }
-      doc.text(`Período: ${startDate} a ${endDate}`, 14, 52);
-      doc.text(`Data de Emissão: ${dateStr}`, 14, 59);
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+      let isFirstPage = true;
 
-      const tableRows: any[] = [];
-      let totalWorked = 0;
-      let totalExtra = 0;
-      let totalDelay = 0;
-
-      sortedDays.forEach((day: any) => {
-        if (day.workedMin !== null) totalWorked += day.workedMin || 0;
-        totalExtra += day.extraMin || 0;
-        totalDelay += day.delayMin || 0;
-
-        tableRows.push([
-          `${day.dateStr} (${day.dayOfWeek})`,
-          day['Entrada'] ? day['Entrada'].time : '-',
-          day['Saída Almoço'] ? day['Saída Almoço'].time : '-',
-          day['Retorno Almoço'] ? day['Retorno Almoço'].time : '-',
-          day['Saída'] ? day['Saída'].time : '-',
-          day.workedMin !== null && !day.hasIncomplete ? minToTime(day.workedMin) : (day.hasIncomplete ? minToTime(day.workedMin) + ' (Inc.)' : 'Incompleto'),
-          day.extraMin > 0 ? minToTime(day.extraMin) : '-',
-          day.delayMin > 0 ? minToTime(day.delayMin) : '-'
-        ]);
-      });
-
-      autoTable(doc, {
-          startY: 65,
-          head: [["Data", "Entrada", "Saída Almoço", "Retorno", "Saída", "Horas Trab.", "Horas Extras", "Atrasos"]],
-          body: tableRows,
-          theme: 'grid',
-          headStyles: { fillColor: [37, 99, 235] },
-          styles: { fontSize: 8 }
-      });
-
-      let currentY = (doc as any).lastAutoTable.finalY + 15;
-      
-      // Resumo do Banco de Horas
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(12);
-      doc.text('Resumo do Período', 14, currentY);
-      currentY += 10;
-      
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.text(`Total de Horas Trabalhadas: ${minToTime(totalWorked)}`, 14, currentY); currentY += 7;
-      doc.text(`Total de Horas Extras: ${minToTime(totalExtra)}`, 14, currentY); currentY += 7;
-      doc.text(`Total de Atrasos: ${minToTime(totalDelay)}`, 14, currentY); currentY += 7;
-      doc.text('Saldo do Banco de Horas: ---', 14, currentY); currentY += 15;
-
-      // Observações de Atraso/Antecipação
-      const observacoes: string[] = [];
-      sortedDays.forEach((day: any) => {
-        ['Entrada', 'Saída Almoço', 'Retorno Almoço', 'Saída'].forEach(tipo => {
-          if (day[tipo] && day[tipo].justificativa) {
-             observacoes.push(`${day.dateStr} (${tipo}): ${day[tipo].justificativa}`);
-          }
-        });
-      });
-
-      if (observacoes.length > 0) {
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
-        doc.text('Observações de Atraso/Antecipação:', 14, currentY);
-        currentY += 6;
+      Object.entries(groupedPontos).forEach(([userName, dates]) => {
+        const sortedDays = Object.values(dates).sort((a: any, b: any) => a.dateObj.getTime() - b.dateObj.getTime());
         
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        observacoes.forEach(obs => {
-           if (currentY > 270) {
-              doc.addPage();
-              currentY = 20;
-           }
-           doc.text(obs, 14, currentY);
-           currentY += 5;
+        // Group days by cycle (10th to 9th)
+        const cycles: Record<string, any[]> = {};
+        sortedDays.forEach((day: any) => {
+            const d = day.dateObj;
+            let cycleYear = d.getFullYear();
+            let cycleMonth = d.getMonth();
+            if (d.getDate() >= 10) {
+                cycleMonth += 1; // Ends next month
+                if (cycleMonth > 11) {
+                    cycleMonth = 0;
+                    cycleYear++;
+                }
+            }
+            const cycleKey = `${cycleYear}-${cycleMonth.toString().padStart(2, '0')}`;
+            if (!cycles[cycleKey]) cycles[cycleKey] = [];
+            cycles[cycleKey].push(day);
         });
-        currentY += 10;
-      } else {
-        currentY += 10;
+
+        // Recuperar Configurações
+        const userEmail = sortedDays.length > 0 ? (sortedDays[0]['Entrada']?.usuario_email || userName) : userName;
+        const uConfig = baseConfigPonto.userConfigs?.[userEmail] || baseConfigPonto;
+        const expectedMorning = (timeToMin(uConfig.hora_inicio_almoco) - timeToMin(uConfig.hora_entrada));
+        const expectedAfternoon = (timeToMin(uConfig.hora_saida) - timeToMin(uConfig.hora_fim_almoco));
+        const expectedTotal = (expectedMorning > 0 ? expectedMorning : 0) + (expectedAfternoon > 0 ? expectedAfternoon : 0);
+        const expTotalTime = minToTime(expectedTotal);
+
+        Object.keys(cycles).sort().forEach(cycleKey => {
+            if (!isFirstPage) {
+              doc.addPage();
+            }
+            isFirstPage = false;
+            
+            const cycleDays = cycles[cycleKey];
+            
+            let startDate = '-';
+            let endDate = '-';
+            if (cycleDays.length > 0) {
+                startDate = cycleDays[0].dateStr;
+                endDate = cycleDays[cycleDays.length - 1].dateStr;
+            }
+            
+            // Determinar o mês/ano base do ciclo
+            const [cYear, cMonth] = cycleKey.split('-');
+            const monthNameObj = new Date(parseInt(cYear), parseInt(cMonth), 1);
+            const monthName = monthNameObj.toLocaleDateString('pt-BR', { month: 'long' }).toUpperCase();
+            const yearNum = cYear;
+
+            // HEADER (Landscape: max width 297, center 148.5, rect width 269)
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(14);
+            doc.setTextColor(31, 41, 55); // primary #1F2937
+            doc.text('CONTROLE DE PONTO - DEPARTAMENTO PESSOAL', 148.5, 20, { align: 'center' });
+            
+            // Header Fields - Retângulo
+            doc.setDrawColor(55, 65, 81); // border #374151
+            doc.setLineWidth(0.3);
+            doc.rect(14, 25, 269, 20);
+
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Empresa:', 16, 31);
+            doc.setFont('helvetica', 'normal');
+            doc.text('FREITAS HUB AGÊNCIA', 35, 31);
+
+            doc.setFont('helvetica', 'bold');
+            doc.text('Funcionário:', 16, 38);
+            doc.setFont('helvetica', 'normal');
+            doc.text(userName, 40, 38);
+            
+            doc.setFont('helvetica', 'bold');
+            doc.text('Período:', 110, 31);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`10/${(parseInt(cMonth) === 0 ? 12 : parseInt(cMonth)).toString().padStart(2, '0')}/${parseInt(cMonth) === 0 ? parseInt(cYear) - 1 : cYear} a 09/${(parseInt(cMonth) + 1).toString().padStart(2, '0')}/${cYear}`, 128, 31);
+            
+            doc.setFont('helvetica', 'bold');
+            doc.text('Mês Ref:', 110, 38);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`${monthName} / ${yearNum}`, 128, 38);
+
+            // Header Schedule Config
+            doc.setFont('helvetica', 'bold');
+            doc.text('Jornada:', 200, 31);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`${uConfig.hora_entrada} às ${uConfig.hora_inicio_almoco} / ${uConfig.hora_fim_almoco} às ${uConfig.hora_saida} (${expTotalTime}h/dia)`, 218, 31);
+            
+            doc.setFont('helvetica', 'bold');
+            doc.text('Tolerância:', 200, 38);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`${uConfig.tolerancia_entrada_antes || 5} min`, 222, 38);
+
+            const tableRows: any[] = [];
+            let totalWorked = 0;
+            let totalExtra = 0;
+            let totalDelay = 0;
+            
+            let totalWorkDays = 0;
+            let totalSaturdays = 0;
+            let totalSundays = 0;
+            
+            const allObservations: string[] = [];
+
+            cycleDays.forEach((day: any) => {
+              if (day.workedMin !== null) totalWorked += day.workedMin || 0;
+              totalExtra += day.extraMin || 0;
+              totalDelay += day.delayMin || 0;
+              
+              const dLower = day.dayOfWeek.toLowerCase();
+              if (dLower.includes('sáb')) totalSaturdays++;
+              else if (dLower.includes('dom')) totalSundays++;
+              else totalWorkDays++;
+              
+              let dayObs = '';
+              
+              ['Entrada', 'Saída Almoço', 'Retorno Almoço', 'Saída'].forEach(tipo => {
+                  if (day[tipo] && day[tipo].justificativa) {
+                     dayObs += `${tipo}: ${day[tipo].justificativa} `;
+                  }
+              });
+              
+
+              
+              if (dayObs.trim()) {
+                  allObservations.push(`${day.dateStr}: ${dayObs.trim()}`);
+              }
+
+              tableRows.push([
+                day.dateStr,
+                day.dayOfWeek,
+                day['Entrada'] ? day['Entrada'].time : '-',
+                day['Saída Almoço'] ? day['Saída Almoço'].time : '-',
+                day['Retorno Almoço'] ? day['Retorno Almoço'].time : '-',
+                day['Saída'] ? day['Saída'].time : '-',
+                expTotalTime,
+                day.workedMin !== null ? minToTime(day.workedMin) : '-',
+                day.extraMin > 0 ? minToTime(day.extraMin) : '-',
+                day.delayMin > 0 ? minToTime(day.delayMin) : '-',
+                '-'
+              ]);
+            });
+
+            // expected total for month
+            const totalExpectedMonth = (totalWorkDays * expectedTotal);
+
+            autoTable(doc, {
+                startY: 50,
+                head: [["Data", "Dia", "Entrada", "Saída Almoço", "Retorno", "Saída", "Jornada Prevista", "Horas Trab", "Horas Ext", "Atrasos", "Banco"]],
+                body: tableRows,
+                theme: 'grid',
+                headStyles: { fillColor: [31, 41, 55], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
+                styles: { fontSize: 8, lineColor: [55, 65, 81], lineWidth: 0.1, cellPadding: 1.5, halign: 'center' },
+                columnStyles: {
+                    0: { cellWidth: 20 },
+                    1: { cellWidth: 20 },
+                    2: { cellWidth: 20 },
+                    3: { cellWidth: 25 },
+                    4: { cellWidth: 25 },
+                    5: { cellWidth: 20 },
+                    6: { cellWidth: 30 },
+                    7: { cellWidth: 25, fontStyle: 'bold' },
+                    8: { cellWidth: 25, textColor: [22, 163, 74] },
+                    9: { cellWidth: 25, textColor: [220, 38, 38] },
+                    10: { cellWidth: 20 }
+                },
+                didParseCell: function (data: any) {
+                    if (data.section === 'body') {
+                        const rowData = data.row.raw;
+                        const dayStr = rowData[1].toLowerCase();
+                        if (dayStr.includes('sáb') || dayStr.includes('dom')) {
+                            data.cell.styles.fillColor = [243, 244, 246]; // weekend #F3F4F6
+                        }
+                    }
+                }
+            });
+
+            let currentY = (doc as any).lastAutoTable.finalY + 5;
+            
+            // Resumo do Banco de Horas
+            if (currentY > 170) {
+               doc.addPage();
+               currentY = 20;
+            }
+
+            doc.setDrawColor(55, 65, 81);
+            doc.setLineWidth(0.3);
+            doc.rect(14, currentY, 269, 20);
+            
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(10);
+            doc.text('RESUMO MENSAL', 16, currentY + 6);
+            
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            
+            doc.text(`Dias Trabalhados: ${totalWorkDays} | Sábados: ${totalSaturdays} | Domingos: ${totalSundays} | Feriados: 0`, 16, currentY + 14);
+            
+            doc.setFont('helvetica', 'bold');
+            doc.text(`Horas Previstas: ${minToTime(totalExpectedMonth)}`, 120, currentY + 7);
+            doc.text(`Horas Trabalhadas: ${minToTime(totalWorked)}`, 120, currentY + 14);
+            
+            doc.text(`Horas Extras: ${minToTime(totalExtra)}`, 190, currentY + 7);
+            doc.text(`Horas Atraso: ${minToTime(totalDelay)}`, 190, currentY + 14);
+            
+            doc.text('Saldo Banco de Horas: ---', 240, currentY + 14);
+
+            currentY += 25;
+            
+            if (allObservations.length > 0) {
+                if (currentY > 180) {
+                   doc.addPage();
+                   currentY = 20;
+                }
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(9);
+                doc.text('OBSERVAÇÕES (ATRASOS / ANTECIPAÇÕES / JUSTIFICATIVAS)', 14, currentY);
+                currentY += 5;
+                
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(8);
+                allObservations.forEach(obs => {
+                    const lines = doc.splitTextToSize(obs, 269);
+                    if (currentY + (lines.length * 4) > 190) {
+                        doc.addPage();
+                        currentY = 20;
+                    }
+                    doc.text(lines, 14, currentY);
+                    currentY += (lines.length * 4) + 1;
+                });
+            }
+
+            // Signatures
+            if (currentY > 180) {
+               doc.addPage();
+               currentY = 30;
+            } else {
+               currentY = Math.max(currentY + 15, 185);
+            }
+            
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            
+            doc.line(30, currentY, 120, currentY);
+            doc.line(177, currentY, 267, currentY);
+            currentY += 5;
+            doc.text('Assinatura do Funcionário', 75, currentY, { align: 'center' });
+            doc.text('Assinatura do Gerente', 222, currentY, { align: 'center' });
+            
+            currentY += 10;
+            doc.text(`Data: ____/____/______`, 75, currentY, { align: 'center' });
+            doc.text(`Data: ____/____/______`, 222, currentY, { align: 'center' });
+        });
+      });
+      
+      if (isFirstPage) { 
+          doc.setFontSize(14);
+         doc.text('Nenhum registro encontrado no período.', 148.5, 50, { align: 'center' });
       }
 
-      if (currentY > 250) {
-         doc.addPage();
-         currentY = 30;
-      }
-
-      // Signatures
-      doc.line(20, currentY, 90, currentY);
-      doc.line(120, currentY, 190, currentY);
-      currentY += 5;
-      doc.text('Assinatura do Colaborador', 55, currentY, { align: 'center' });
-      doc.text('Assinatura do Responsável', 155, currentY, { align: 'center' });
-    });
-    
-    if (isFirstPage) { 
-       doc.setFontSize(14);
-       doc.text('Nenhum registro encontrado no período.', 105, 50, { align: 'center' });
-    }
-
-    doc.save(`folha_de_ponto_${dateStr.replace(/\//g, '-')}.pdf`);
+      doc.save(`folha_de_ponto_${dateStr.replace(/\//g, '-')}.pdf`);
     } catch (err: any) {
       if(err?.message?.includes("Failed to fetch")) console.warn("Erro ao gerar PDF:", err); else console.error("Erro ao gerar PDF:", err);
       alert("Falha ao gerar o PDF. Verifique sua conexão de rede ou tente novamente.");
     }
   };
-
   const renderCell = (pointData: any, typeColorClass: string) => {
     if (!pointData) return <span className="text-slate-600">-</span>;
     const justifyIcon = pointData.justificativa ? <span title={pointData.justificativa} className="ml-1 text-[10px] text-red-400 cursor-help">ℹ️</span> : null;
@@ -1754,9 +1996,9 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
           )}
         </div>
         <div className="text-5xl sm:text-7xl font-mono font-bold text-emerald-400 drop-shadow-[0_0_15px_rgba(16,185,129,0.5)]">
-          {currentTime.toLocaleTimeString('pt-BR')}
+          {currentTime.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
         </div>
-        <p className="text-slate-400 font-bold uppercase tracking-widest">{currentTime.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+        <p className="text-slate-400 font-bold uppercase tracking-widest">{currentTime.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Sao_Paulo' })}</p>
       </div>
 
       {!USER_PROFILES[currentUserProfile]?.permissions?.ponto_history_only && (
@@ -1954,23 +2196,41 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
                        <tbody>
                          {Object.values(dates).sort((a: any, b: any) => b.dateObj.getTime() - a.dateObj.getTime()).map((day: any) => (
                            <tr key={day.dateStr} className="border-b border-slate-800/50 hover:bg-slate-900/50 transition-colors">
-                             <td className="px-4 py-4 whitespace-nowrap">
+                             <td className="px-4 py-4 whitespace-nowrap align-top">
                                <div className="font-bold text-slate-300">{day.dateStr}</div>
                                <div className="text-[10px] uppercase tracking-widest text-slate-500">{day.dayOfWeek}</div>
                              </td>
-                             <td className="px-4 py-4">{renderCell(day['Entrada'], 'text-emerald-400')}</td>
-                             <td className="px-4 py-4">{renderCell(day['Saída Almoço'], 'text-amber-400')}</td>
-                             <td className="px-4 py-4">{renderCell(day['Retorno Almoço'], 'text-blue-400')}</td>
-                             <td className="px-4 py-4">{renderCell(day['Saída'], 'text-red-400')}</td>
-                             <td className="px-4 py-4 font-mono font-bold text-slate-300 flex items-center gap-2">
+                             <td className="px-4 py-4 align-top">{renderCell(day['Entrada'], 'text-emerald-400')}</td>
+                             <td className="px-4 py-4 align-top">{renderCell(day['Saída Almoço'], 'text-amber-400')}</td>
+                             <td className="px-4 py-4 align-top">{renderCell(day['Retorno Almoço'], 'text-blue-400')}</td>
+                             <td className="px-4 py-4 align-top">{renderCell(day['Saída'], 'text-red-400')}</td>
+                             <td className="px-4 py-4 font-mono font-bold text-slate-300 flex items-center gap-2 align-top">
                                 {day.workedMin !== null ? minToTime(day.workedMin) : '-'}
                                 {day.hasIncomplete && <span className="text-red-500 bg-red-500/10 px-1.5 py-0.5 rounded text-[9px] uppercase tracking-widest font-black">Inc.</span>}
                              </td>
-                             <td className="px-4 py-4 font-mono font-bold text-emerald-400">
-                                {day.extraMin > 0 ? minToTime(day.extraMin) : '-'}
+                             <td className="px-4 py-4 font-mono font-bold text-emerald-400 align-top">
+                                {day.extraMin > 0 ? (
+                                    <div>
+                                        <div>{minToTime(day.extraMin)}</div>
+                                        {day.extraDetails && day.extraDetails.length > 0 && (
+                                            <div className="text-[9px] font-sans text-emerald-500/70 font-normal uppercase mt-1 space-y-0.5 whitespace-nowrap">
+                                                {day.extraDetails.map((det: string, i: number) => <div key={i}>{det}</div>)}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : '-'}
                              </td>
-                             <td className="px-4 py-4 font-mono font-bold text-red-400">
-                                {day.delayMin > 0 ? minToTime(day.delayMin) : '-'}
+                             <td className="px-4 py-4 font-mono font-bold text-red-400 align-top">
+                                {day.delayMin > 0 ? (
+                                    <div>
+                                        <div>{minToTime(day.delayMin)}</div>
+                                        {day.delayDetails && day.delayDetails.length > 0 && (
+                                            <div className="text-[9px] font-sans text-red-500/70 font-normal uppercase mt-1 space-y-0.5 whitespace-nowrap">
+                                                {day.delayDetails.map((det: string, i: number) => <div key={i}>{det}</div>)}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : '-'}
                              </td>
                            </tr>
                          ))}
@@ -2078,7 +2338,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <label className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mb-1 block">Horário</label>
-                    <input type="time" value={settingsFormData.hora_fim_almoco || '13:00'} onChange={(e) => setSettingsFormData({...settingsFormData, hora_fim_almoco: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white font-mono focus:border-emerald-500 outline-none text-sm text-center" />
+                    <input type="time" value={settingsFormData.hora_fim_almoco || '13:30'} onChange={(e) => setSettingsFormData({...settingsFormData, hora_fim_almoco: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white font-mono focus:border-emerald-500 outline-none text-sm text-center" />
                   </div>
                   <div>
                     <label className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mb-1 block">Tolerância Antes (min)</label>
@@ -2164,8 +2424,8 @@ export default function App() {
   const [taskSearch, setTaskSearch] = useState('');
 
   const [reportFilterUser, setReportFilterUser] = useState('all');
-  const [reportFilterDateStart, setReportFilterDateStart] = useState(() => new Date().toISOString().split('T')[0]);
-  const [reportFilterDateEnd, setReportFilterDateEnd] = useState(() => new Date().toISOString().split('T')[0]);
+  const [reportFilterDateStart, setReportFilterDateStart] = useState(() => getBRTDateString());
+  const [reportFilterDateEnd, setReportFilterDateEnd] = useState(() => getBRTDateString());
   const [summaryForm, setSummaryForm] = useState({
     atividades: '', pendencias: '', dificuldades: '', observacoes: '', prioridades: ''
   });
@@ -2186,46 +2446,77 @@ export default function App() {
 
   useEffect(() => {
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const notifs: any[] = [];
     clients.forEach((c: any) => {
-      if (c.status === 'Cliente Ativo' && c.dia_pagamento) {
-        const diaPagamento = parseInt(c.dia_pagamento, 10);
-        if (!isNaN(diaPagamento)) {
-          const prevMonth = new Date(today.getFullYear(), today.getMonth() - 1, diaPagamento);
-          const currentMonth = new Date(today.getFullYear(), today.getMonth(), diaPagamento);
-          const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, diaPagamento);
-          
-          const distPrev = (today.getTime() - prevMonth.getTime()) / (1000 * 3600 * 24);
-          const distCurr = (today.getTime() - currentMonth.getTime()) / (1000 * 3600 * 24);
-          const distNext = (today.getTime() - nextMonth.getTime()) / (1000 * 3600 * 24);
-          
-          let closestDist = distCurr;
-          
-          if (Math.abs(distPrev) < Math.abs(closestDist)) { closestDist = distPrev; }
-          if (Math.abs(distNext) < Math.abs(closestDist)) { closestDist = distNext; }
-          
-          // Notify 3 days before up to 3 days after
-          if (closestDist >= -3 && closestDist <= 3) {
-             let msg = '';
-             if (closestDist < -1) msg = `Pagamento vence em ${Math.ceil(Math.abs(closestDist))} dias`;
-             else if (closestDist > 1) msg = `Pagamento venceu há ${Math.floor(closestDist)} dias`;
-             else if (closestDist > 0 && closestDist <= 1) msg = `Pagamento venceu ontem`;
-             else if (closestDist < 0 && closestDist >= -1) msg = `Pagamento vence amanhã`;
-             else msg = `Pagamento vence hoje`;
-             
-             notifs.push({
-               id: c.id,
-               title: c.nome || c.empresa,
-               msg: msg,
-               dia: diaPagamento
-             });
+      if (c.status === 'Cliente Ativo') {
+        if (c.dia_pagamento) {
+          const diaPagamento = parseInt(c.dia_pagamento, 10);
+          if (!isNaN(diaPagamento)) {
+            const todayRaw = new Date();
+            const prevMonth = new Date(todayRaw.getFullYear(), todayRaw.getMonth() - 1, diaPagamento);
+            const currentMonth = new Date(todayRaw.getFullYear(), todayRaw.getMonth(), diaPagamento);
+            const nextMonth = new Date(todayRaw.getFullYear(), todayRaw.getMonth() + 1, diaPagamento);
+            
+            const distPrev = (todayRaw.getTime() - prevMonth.getTime()) / (1000 * 3600 * 24);
+            const distCurr = (todayRaw.getTime() - currentMonth.getTime()) / (1000 * 3600 * 24);
+            const distNext = (todayRaw.getTime() - nextMonth.getTime()) / (1000 * 3600 * 24);
+            
+            let closestDist = distCurr;
+            
+            if (Math.abs(distPrev) < Math.abs(closestDist)) { closestDist = distPrev; }
+            if (Math.abs(distNext) < Math.abs(closestDist)) { closestDist = distNext; }
+            
+            // Notify 3 days before up to 3 days after
+            if (closestDist >= -3 && closestDist <= 3) {
+               let msg = '';
+               if (closestDist < -1) msg = `Pagamento vence em ${Math.ceil(Math.abs(closestDist))} dias`;
+               else if (closestDist > 1) msg = `Pagamento venceu há ${Math.floor(closestDist)} dias`;
+               else if (closestDist > 0 && closestDist <= 1) msg = `Pagamento venceu ontem`;
+               else if (closestDist < 0 && closestDist >= -1) msg = `Pagamento vence amanhã`;
+               else msg = `Pagamento vence hoje`;
+               
+               notifs.push({
+                 id: c.id + '_pag',
+                 title: c.nome || c.empresa,
+                 msg: msg,
+                 dia: diaPagamento,
+                 type: 'pagamento'
+               });
+            }
+          }
+        }
+        
+        if (c.data_fim_contrato) {
+          const [year, month, day] = c.data_fim_contrato.split('-');
+          if (year && month && day) {
+            const endData = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10));
+            endData.setHours(0,0,0,0);
+            const diffTime = endData.getTime() - today.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            if (diffDays >= -5 && diffDays <= 15) {
+               let msg = '';
+               if (diffDays === 0) msg = 'Contrato termina hoje';
+               else if (diffDays === 1) msg = 'Contrato termina amanhã';
+               else if (diffDays > 1) msg = `Contrato termina em ${diffDays} dias`;
+               else if (diffDays === -1) msg = 'Contrato terminou ontem';
+               else msg = `Contrato terminou há ${Math.abs(diffDays)} dias`;
+               
+               notifs.push({
+                 id: c.id + '_contrato',
+                 title: c.nome || c.empresa,
+                 msg: msg,
+                 dia: c.data_fim_contrato.split('-').reverse().join('/'),
+                 type: 'contrato'
+               });
+            }
           }
         }
       }
     });
     setClientPaymentNotifications(notifs);
   }, [clients]);
-
   useEffect(() => {
     let mounted = true;
     if (tasks.length > 0 && transactions.length > 0) {
@@ -2385,7 +2676,7 @@ export default function App() {
           { name: 'pontos', setter: setPontos }
         ];
 
-    const timestamp = new Date().toLocaleTimeString();
+    const timestamp = new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' });
     console.log(`[${timestamp}] 🔄 Iniciando fetch: ${collectionName || 'todas as coleções'}`);
 
     for (const { name, setter } of collectionsToFetch) {
@@ -2448,7 +2739,7 @@ export default function App() {
           } else if (name === 'tasks' && data) {
             const today = new Date();
             today.setHours(0,0,0,0);
-            const todayStr = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+            const todayStr = getBRTDateString();
             
             const tasksToRenew = data.filter((t: any) => {
                if (!t.is_recurring) return false;
@@ -2600,7 +2891,7 @@ export default function App() {
               }
           }
         },
-        filename: `agenda_${new Date().toISOString().split('T')[0]}.pdf`
+        filename: `agenda_${getBRTDateString()}.pdf`
       });
     } else if (type === 'clients') {
       let filtered = clients;
@@ -2650,7 +2941,7 @@ export default function App() {
               }
           }
         },
-        filename: `relatorio_crm_${new Date().toISOString().split('T')[0]}.pdf`
+        filename: `relatorio_crm_${getBRTDateString()}.pdf`
       });
     } else if (type === 'finance') {
       let filtered = transactions;
@@ -2768,7 +3059,7 @@ export default function App() {
             }
           }
         ],
-        filename: `financeiro_${new Date().toISOString().split('T')[0]}.pdf`
+        filename: `financeiro_${getBRTDateString()}.pdf`
       });
             } else if (type === 'productivity') {
       const usersMap: any = {};
@@ -2844,7 +3135,7 @@ export default function App() {
           body: tableData
         },
         additionalTables,
-        filename: `produtividade_${new Date().toISOString().split('T')[0]}.pdf`
+        filename: `produtividade_${getBRTDateString()}.pdf`
       });
         } else if (type === 'tasks') {
       let fTasks = tasks;
@@ -2922,7 +3213,7 @@ export default function App() {
         ],
         progressBar: { label: 'Progresso Global', percent: overallPercent },
         userPages: userPages,
-        filename: `tarefas_${new Date().toISOString().split('T')[0]}.pdf`
+        filename: `tarefas_${getBRTDateString()}.pdf`
       });
     } else if (type === 'all') {
       let fTrans = transactions;
@@ -2969,7 +3260,7 @@ export default function App() {
             body: clientTable
           }
         ],
-        filename: `geral_${new Date().toISOString().split('T')[0]}.pdf`
+        filename: `geral_${getBRTDateString()}.pdf`
       });
     }
   };
@@ -3597,16 +3888,18 @@ export default function App() {
                 exit={{ height: 0, opacity: 0 }}
                 className="overflow-hidden space-y-4"
               >
-                {clientPaymentNotifications.map((notif: any) => (
-                  <div key={`client-notif-${notif.id}`} className="bg-amber-500/10 border border-amber-500 p-5 rounded-3xl flex items-center justify-between gap-4 text-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)]">
+                                {clientPaymentNotifications.map((notif: any) => (
+                  <div key={`client-notif-${notif.id}`} className={`${notif.type === 'contrato' ? 'bg-purple-500/10 border-purple-500 text-purple-500 shadow-[0_0_20px_rgba(168,85,247,0.3)]' : 'bg-amber-500/10 border-amber-500 text-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)]'} border p-5 rounded-3xl flex items-center justify-between gap-4`}>
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center shrink-0">
-                        <DollarSign size={24} className="text-slate-950" />
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${notif.type === 'contrato' ? 'bg-purple-500' : 'bg-amber-500'}`}>
+                        {notif.type === 'contrato' ? <FileText size={24} className="text-slate-950" /> : <DollarSign size={24} className="text-slate-950" />}
                       </div>
                       <div>
-                        <h4 className="font-black text-lg tracking-tight">LEMBRETE DE COBRANÇA: {notif.title}</h4>
-                        <p className="text-sm text-amber-400/80 font-bold mt-1 uppercase tracking-widest flex items-center gap-1">
-                          {notif.msg} (Dia {notif.dia})
+                        <h4 className="font-black text-lg tracking-tight">
+                          {notif.type === 'contrato' ? 'ALERTA DE CONTRATO' : 'LEMBRETE DE COBRANÇA'}: {notif.title}
+                        </h4>
+                        <p className={`text-sm font-bold mt-1 uppercase tracking-widest flex items-center gap-1 ${notif.type === 'contrato' ? 'text-purple-400/80' : 'text-amber-400/80'}`}>
+                          {notif.msg} {notif.type === 'contrato' ? `(${notif.dia})` : `(Dia ${notif.dia})`}
                         </p>
                       </div>
                     </div>
@@ -3720,7 +4013,7 @@ export default function App() {
                       return true;
                     }).sort((a: any, b: any) => new Date(a.data || 0).getTime() - new Date(b.data || 0).getTime())}
                     collName="appointments" 
-                    onAdd={() => { setEditingId(null); setFormData({ data: new Date().toISOString().split('T')[0] }); setIsModalOpen(true); }} 
+                    onAdd={() => { setEditingId(null); setFormData({ data: getBRTDateString() }); setIsModalOpen(true); }} 
                     permissions={permissions}
                     handleSetAgendaStatus={handleSetAgendaStatus}
                     setFormData={setFormData}
@@ -3820,7 +4113,7 @@ export default function App() {
                         </button>
                         )}
                       <button 
-                        onClick={() => { setEditingId(null); setFormData({ status: 'pending', prioridade: 'medium', data: new Date().toISOString().split('T')[0], atribuido_a: taskFilterPerson === 'all' ? currentUserProfile : taskFilterPerson }); setIsModalOpen(true); }}
+                        onClick={() => { setEditingId(null); setFormData({ status: 'pending', prioridade: 'medium', data: getBRTDateString(), atribuido_a: taskFilterPerson === 'all' ? currentUserProfile : taskFilterPerson }); setIsModalOpen(true); }}
                         className="flex items-center gap-2 px-6 py-3 bg-emerald-500 text-slate-950 rounded-xl font-black text-sm uppercase tracking-widest hover:bg-emerald-400 hover:shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all active:scale-95"
                       >
                         <Plus size={18} /> Nova Tarefa
@@ -3873,7 +4166,7 @@ export default function App() {
                   {/* Lista de Tarefas (Checklist) */}
                   <div className="space-y-3 pb-20">
                     {(() => {
-                      const todayStr = new Date(new Date().getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                      const todayStr = getBRTDateString();
                       const filteredTasks = tasks.filter((t: any) => {
                         if (taskFilterPerson !== 'all' && t.atribuido_a !== taskFilterPerson) return false;
                         
@@ -3971,7 +4264,7 @@ export default function App() {
                                         {isDone && task.updated_at && (
                                           <div className="flex items-center gap-1 text-[10px] uppercase font-black tracking-widest text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
                                             <Check size={10} />
-                                            {new Date(task.updated_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                            {new Date(task.updated_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })}
                                           </div>
                                         )}
                                         <div className="flex items-center gap-1">
@@ -4040,7 +4333,7 @@ export default function App() {
                                         }),
                                         status: 'daily_report',
                                         atribuido_a: currentUserProfile,
-                                        data: new Date().toISOString().split('T')[0],
+                                        data: getBRTDateString(),
                                         created_at: new Date().toISOString()
                                       }]);
                                       if (error) {
@@ -4132,7 +4425,7 @@ export default function App() {
                         title="Todas as Transações" 
                         data={transactions} 
                     collName="transactions" 
-                      onAdd={() => { setEditingId(null); setFormData({ type: 'income', status: 'pending', data: new Date().toISOString().split('T')[0] }); setIsModalOpen(true); setIsHistoryModalOpen(false); }} 
+                      onAdd={() => { setEditingId(null); setFormData({ type: 'income', status: 'pending', data: getBRTDateString() }); setIsModalOpen(true); setIsHistoryModalOpen(false); }} 
                       permissions={permissions}
                     handleToggleStatus={handleToggleStatus}
                     setFormData={setFormData}
@@ -4280,6 +4573,14 @@ export default function App() {
                            <div className="space-y-2">
                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Dia de Pagamento</label>
                              <input type="number" min="1" max="31" placeholder="Ex: 5" value={formData.dia_pagamento || ''} onChange={(e) => setFormData({...formData, dia_pagamento: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                           </div>
+                           <div className="space-y-2">
+                             <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Início do Contrato</label>
+                             <input type="date" value={formData.data_inicio_contrato || ''} onChange={(e) => setFormData({...formData, data_inicio_contrato: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                           </div>
+                           <div className="space-y-2">
+                             <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Fim do Contrato</label>
+                             <input type="date" value={formData.data_fim_contrato || ''} onChange={(e) => setFormData({...formData, data_fim_contrato: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
                            </div>
                            <div className="space-y-2 md:col-span-2">
                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Endereço Completo (com Cidade e Estado)</label>
