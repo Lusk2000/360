@@ -403,7 +403,7 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
                   ))}
                   {transactions.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="p-8 text-center text-slate-500 italic">Nenhuma movimentação registrada no período.</td>
+                      <td colSpan={5} className="p-8 text-center text-slate-500 italic">Nenhuma movimentação registrada no período.</td>
                     </tr>
                   )}
                 </tbody>

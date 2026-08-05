@@ -2599,24 +2599,74 @@ export default function App() {
       if (start) filtered = filtered.filter((t:any) => t.data >= start);
       if (end) filtered = filtered.filter((t:any) => t.data <= end);
       
-      const tIncome = filtered.filter((t: any) => t.type === 'income').reduce((acc: any, t: any) => acc + Number(t.valor || 0), 0);
-      const tExpense = filtered.filter((t: any) => t.type === 'expense').reduce((acc: any, t: any) => acc + Number(t.valor || 0), 0);
+      const incTrans = filtered.filter((t: any) => t.type === 'income');
+      const expTrans = filtered.filter((t: any) => t.type === 'expense');
+
+      const tIncome = incTrans.reduce((acc: any, t: any) => acc + Number(t.valor || 0), 0);
+      const tExpense = expTrans.reduce((acc: any, t: any) => acc + Number(t.valor || 0), 0);
       const tProfit = tIncome - tExpense;
       
+      const incCount = incTrans.length;
+      const expCount = expTrans.length;
+      const avgIncome = incCount > 0 ? tIncome / incCount : 0;
+      const avgExpense = expCount > 0 ? tExpense / expCount : 0;
+
       const cards = [
         { label: 'Receita Total', value: formatVal(tIncome, tIncome, financialDisplayMode), color: [34, 197, 94] },
         { label: 'Despesas', value: formatVal(tExpense, tIncome, financialDisplayMode), color: [239, 68, 68] },
         { label: 'Lucro Líquido', value: formatVal(tProfit, tIncome, financialDisplayMode), color: [37, 99, 235] }
       ];
       
+      const resumoTable = [
+        ['Quantidade de Registros', incCount.toString(), expCount.toString()],
+        ['Valor Total', formatVal(tIncome, tIncome, financialDisplayMode), formatVal(tExpense, tIncome, financialDisplayMode)],
+        ['Ticket Médio', formatVal(avgIncome, tIncome, financialDisplayMode), formatVal(avgExpense, tExpense, financialDisplayMode)]
+      ];
+
       const tableData = filtered.map((t: any) => [
+        new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'}),
         t.type === 'income' ? 'Entrada' : 'Saída',
-        t.type === 'income' ? (t.cliente || t.descricao || 'N/A') : (t.descricao || 'N/A'),
+        t.cliente || t.descricao || '--',
         t.categoria || 'Geral',
         t.forma_pagamento || 'PIX',
-        new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'}),
         formatVal(Number(t.valor), t.type === 'income' ? tIncome : tExpense, financialDisplayMode),
-        t.status === 'paid' ? 'Pago' : 'Pendente'
+        t.type === 'expense' ? 'Registrada' : (t.status === 'received' ? 'Recebido' : 'Pendente'),
+        t.observacao || '--'
+      ]);
+
+      const incByCat = incTrans.reduce((acc: any, t: any) => {
+        const cat = t.categoria || 'Geral';
+        acc[cat] = (acc[cat] || 0) + Number(t.valor || 0);
+        return acc;
+      }, {});
+      
+      const expByCat = expTrans.reduce((acc: any, t: any) => {
+        const cat = t.categoria || 'Geral';
+        acc[cat] = (acc[cat] || 0) + Number(t.valor || 0);
+        return acc;
+      }, {});
+
+      const incCatData = Object.entries(incByCat).sort((a:any, b:any) => b[1] - a[1]).map(([cat, val]: any) => [
+        cat, formatVal(Number(val), tIncome, financialDisplayMode)
+      ]);
+      const expCatData = Object.entries(expByCat).sort((a:any, b:any) => b[1] - a[1]).map(([cat, val]: any) => [
+        cat, formatVal(Number(val), tExpense, financialDisplayMode)
+      ]);
+
+      const fixedTasks = tasks.filter((t: any) => t.is_recurring && t.titulo?.startsWith('[GASTO_FIXO]')).map((t: any) => {
+          try {
+             const data = JSON.parse(t.descricao);
+             return { ...data, id: t.id, active: t.status !== 'done', created_at: t.created_at, titulo: t.titulo, name: data.name || t.titulo?.replace('[GASTO_FIXO] ', '') };
+          } catch(e) { return null; }
+      }).filter(Boolean);
+
+      const fixedTasksTable = fixedTasks.map((ft: any) => [
+        ft.name,
+        ft.category,
+        ft.recurrence,
+        'Dia ' + ft.day,
+        formatVal(Number(ft.value), tExpense, financialDisplayMode),
+        ft.active ? 'Ativo' : 'Inativo'
       ]);
 
       generateExecutiveReport({
@@ -2624,20 +2674,42 @@ export default function App() {
         period: periodStr,
         cards: cards as any,
         mainTable: {
-          title: 'Lançamentos Financeiros',
-          head: [['Tipo', 'Descrição', 'Categoria', 'Forma Pagamento', 'Data', 'Valor', 'Status']],
-          body: tableData,
-          didParseCell: function(data: any) {
-              if (data.section === 'body') {
-                  if (data.column.index === 0) {
-                      data.cell.styles.textColor = data.cell.raw === 'Entrada' ? [34, 197, 94] : [239, 68, 68];
-                  }
-                  if (data.column.index === 6) {
-                      data.cell.styles.textColor = data.cell.raw === 'Pago' ? [34, 197, 94] : [245, 158, 11];
-                  }
-              }
-          }
+          title: 'Resumo Detalhado (Entradas e Saídas)',
+          head: [['Indicador', 'Entradas (Receitas)', 'Saídas (Despesas)']],
+          body: resumoTable
         },
+        additionalTables: [
+          ...(incCatData.length > 0 ? [{
+            title: 'Entradas por Categoria',
+            head: [['Categoria', 'Valor']],
+            body: incCatData
+          }] : []),
+          ...(expCatData.length > 0 ? [{
+            title: 'Saídas por Categoria',
+            head: [['Categoria', 'Valor']],
+            body: expCatData
+          }] : []),
+          ...(fixedTasksTable.length > 0 ? [{
+            title: 'Gastos Fixos',
+            head: [['Despesa', 'Categoria', 'Recorrência', 'Vencimento', 'Valor', 'Status']],
+            body: fixedTasksTable
+          }] : []),
+          {
+            title: 'Lançamentos Financeiros (Registros)',
+            head: [['Data', 'Tipo', 'Cliente/Fornecedor', 'Categoria', 'Forma Pagamento', 'Valor', 'Status', 'Observação']],
+            body: tableData,
+            didParseCell: function(data: any) {
+                if (data.section === 'body') {
+                    if (data.column.index === 1) {
+                        data.cell.styles.textColor = data.cell.raw === 'Entrada' ? [34, 197, 94] : [239, 68, 68];
+                    }
+                    if (data.column.index === 6) {
+                        data.cell.styles.textColor = data.cell.raw === 'Registrada' || data.cell.raw === 'Recebido' ? [34, 197, 94] : [245, 158, 11];
+                    }
+                }
+            }
+          }
+        ],
         filename: `financeiro_${new Date().toISOString().split('T')[0]}.pdf`
       });
             } else if (type === 'productivity') {
