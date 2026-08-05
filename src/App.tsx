@@ -489,7 +489,9 @@ const ListView = ({ title, data, columns, collName, onAdd, permissions, handleTo
                 <th className="px-6 py-8 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800/50 w-24">Status</th>
               )}
               {columns.map((col: any) => <th key={col.key} className="px-10 py-8 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800/50">{col.label}</th>)}
-              <th className="px-10 py-8 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800/50">Responsável</th>
+              {collName !== 'appointments' && (
+                <th className="px-10 py-8 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800/50">Responsável</th>
+              )}
               <th className="px-10 py-8 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right whitespace-nowrap border-b border-slate-800/50">Ações</th>
             </tr>
           </thead>
@@ -519,16 +521,18 @@ const ListView = ({ title, data, columns, collName, onAdd, permissions, handleTo
                     {col.render ? col.render(item[col.key], item) : item[col.key]}
                   </td>
                 ))}
-                <td className="px-10 py-7">
-                  <div className="flex flex-col gap-1.5">
-                    <span className="px-3 py-1.5 bg-slate-950 text-slate-300 rounded-lg text-[9px] font-black border border-slate-800 uppercase tracking-widest w-fit group-hover:border-emerald-500/30 group-hover:text-emerald-400 transition-all">
-                      {item.responsavel || 'Sistema'}
-                    </span>
-                    {isSystemAdmin && item.editor_nome && (
-                      <span className="text-[7px] text-slate-600 font-bold uppercase mt-1 px-1 tracking-tighter">Editado por: {item.editor_nome}</span>
-                    )}
-                  </div>
-                </td>
+                {collName !== 'appointments' && (
+                  <td className="px-10 py-7">
+                    <div className="flex flex-col gap-1.5">
+                      <span className="px-3 py-1.5 bg-slate-950 text-slate-300 rounded-lg text-[9px] font-black border border-slate-800 uppercase tracking-widest w-fit group-hover:border-emerald-500/30 group-hover:text-emerald-400 transition-all">
+                        {item.responsavel || 'Sistema'}
+                      </span>
+                      {isSystemAdmin && item.editor_nome && (
+                        <span className="text-[7px] text-slate-600 font-bold uppercase mt-1 px-1 tracking-tighter">Editado por: {item.editor_nome}</span>
+                      )}
+                    </div>
+                  </td>
+                )}
                 <td className="px-10 py-7 text-right">
                   <div className="flex justify-end gap-3 translate-x-2 opacity-0 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-500">
                     {collName === 'transactions' && item.type === 'income' && permissions.canEdit('financial_control') && (
@@ -1513,6 +1517,15 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
            return diff;
        };
 
+       const snapTime = (actual: number | null, expected: number | null) => {
+           if (actual === null || expected === null) return actual;
+           let diff = actual - expected;
+           if (diff < -720) diff += 1440;
+           if (diff > 720) diff -= 1440;
+           if (Math.abs(diff) <= 5) return expected;
+           return actual;
+       };
+
        let expectedTotal = timeDiff(expEntrada, expSaidaAlmoco) + timeDiff(expRetornoAlmoco, expSaida);
        if (expSaidaAlmoco === null && expRetornoAlmoco === null) {
            expectedTotal = timeDiff(expEntrada, expSaida);
@@ -1520,15 +1533,20 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
 
        Object.keys(groups[user]).forEach(dateStr => {
           const day = groups[user][dateStr];
-          const t1 = day['Entrada'] ? timeToMin(day['Entrada'].time) : null;
-          const t2 = day['Saída Almoço'] ? timeToMin(day['Saída Almoço'].time) : null;
-          const t3 = day['Retorno Almoço'] ? timeToMin(day['Retorno Almoço'].time) : null;
-          const t4 = day['Saída'] ? timeToMin(day['Saída'].time) : null;
+          const t1_raw = day['Entrada'] ? timeToMin(day['Entrada'].time) : null;
+          const t2_raw = day['Saída Almoço'] ? timeToMin(day['Saída Almoço'].time) : null;
+          const t3_raw = day['Retorno Almoço'] ? timeToMin(day['Retorno Almoço'].time) : null;
+          const t4_raw = day['Saída'] ? timeToMin(day['Saída'].time) : null;
+          
+          const t1 = snapTime(t1_raw, expEntrada);
+          const t2 = snapTime(t2_raw, expSaidaAlmoco);
+          const t3 = snapTime(t3_raw, expRetornoAlmoco);
+          const t4 = snapTime(t4_raw, expSaida);
           
           let worked = 0;
           let hasIncomplete = false;
 
-          if (!t1 && !t2 && !t3 && !t4) {
+          if (!t1_raw && !t2_raw && !t3_raw && !t4_raw) {
               day.workedMin = 0;
               day.extraMin = 0;
               day.delayMin = 0;
@@ -1538,11 +1556,8 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
           if (t1 !== null && t2 !== null && t3 !== null && t4 !== null) {
               worked = timeDiff(t1, t2) + timeDiff(t3, t4);
           } else if (t1 !== null && t4 !== null && t2 === null && t3 === null) {
-              // Somente Entrada e Saída (sem almoço) - Desconta tempo de almoço padrão, se houver
-              const totalDiff = timeDiff(t1, t4);
-              const lunchDuration = timeDiff(expSaidaAlmoco, expRetornoAlmoco);
-              worked = totalDiff - lunchDuration;
-              if (worked < 0) worked = 0;
+              // Sem registro de saída e retorno do almoço: o período de almoço será considerado como tempo trabalhado (hora extra)
+              worked = timeDiff(t1, t4);
           } else {
               if (t1 !== null && t2 !== null) {
                  worked += timeDiff(t1, t2);
@@ -1556,7 +1571,8 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
               }
           }
 
-          day.workedMin = hasIncomplete ? null : worked;
+          day.workedMin = worked; // always calculate, even if incomplete, to generate delay
+          day.hasIncomplete = hasIncomplete;
           day.extraMin = (day.workedMin !== null && day.workedMin > expectedTotal) ? (day.workedMin - expectedTotal) : 0;
           day.delayMin = (day.workedMin !== null && day.workedMin < expectedTotal) ? (expectedTotal - day.workedMin) : 0;
        });
@@ -1622,7 +1638,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
           day['Saída Almoço'] ? day['Saída Almoço'].time : '-',
           day['Retorno Almoço'] ? day['Retorno Almoço'].time : '-',
           day['Saída'] ? day['Saída'].time : '-',
-          day.workedMin !== null ? minToTime(day.workedMin) : 'Incompleto',
+          day.workedMin !== null && !day.hasIncomplete ? minToTime(day.workedMin) : (day.hasIncomplete ? minToTime(day.workedMin) + ' (Inc.)' : 'Incompleto'),
           day.extraMin > 0 ? minToTime(day.extraMin) : '-',
           day.delayMin > 0 ? minToTime(day.delayMin) : '-'
         ]);
@@ -1946,8 +1962,9 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
                              <td className="px-4 py-4">{renderCell(day['Saída Almoço'], 'text-amber-400')}</td>
                              <td className="px-4 py-4">{renderCell(day['Retorno Almoço'], 'text-blue-400')}</td>
                              <td className="px-4 py-4">{renderCell(day['Saída'], 'text-red-400')}</td>
-                             <td className="px-4 py-4 font-mono font-bold text-slate-300">
-                                {day.workedMin !== null ? minToTime(day.workedMin) : <span className="text-slate-600 text-[10px]">Incompleto</span>}
+                             <td className="px-4 py-4 font-mono font-bold text-slate-300 flex items-center gap-2">
+                                {day.workedMin !== null ? minToTime(day.workedMin) : '-'}
+                                {day.hasIncomplete && <span className="text-red-500 bg-red-500/10 px-1.5 py-0.5 rounded text-[9px] uppercase tracking-widest font-black">Inc.</span>}
                              </td>
                              <td className="px-4 py-4 font-mono font-bold text-emerald-400">
                                 {day.extraMin > 0 ? minToTime(day.extraMin) : '-'}
@@ -2165,6 +2182,49 @@ export default function App() {
 
   // Gastos Fixos
   const [fixedExpensesNotifications, setFixedExpensesNotifications] = useState<any[]>([]);
+  const [clientPaymentNotifications, setClientPaymentNotifications] = useState<any[]>([]);
+
+  useEffect(() => {
+    const today = new Date();
+    const notifs: any[] = [];
+    clients.forEach((c: any) => {
+      if (c.status === 'Cliente Ativo' && c.dia_pagamento) {
+        const diaPagamento = parseInt(c.dia_pagamento, 10);
+        if (!isNaN(diaPagamento)) {
+          const prevMonth = new Date(today.getFullYear(), today.getMonth() - 1, diaPagamento);
+          const currentMonth = new Date(today.getFullYear(), today.getMonth(), diaPagamento);
+          const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, diaPagamento);
+          
+          const distPrev = (today.getTime() - prevMonth.getTime()) / (1000 * 3600 * 24);
+          const distCurr = (today.getTime() - currentMonth.getTime()) / (1000 * 3600 * 24);
+          const distNext = (today.getTime() - nextMonth.getTime()) / (1000 * 3600 * 24);
+          
+          let closestDist = distCurr;
+          
+          if (Math.abs(distPrev) < Math.abs(closestDist)) { closestDist = distPrev; }
+          if (Math.abs(distNext) < Math.abs(closestDist)) { closestDist = distNext; }
+          
+          // Notify 3 days before up to 3 days after
+          if (closestDist >= -3 && closestDist <= 3) {
+             let msg = '';
+             if (closestDist < -1) msg = `Pagamento vence em ${Math.ceil(Math.abs(closestDist))} dias`;
+             else if (closestDist > 1) msg = `Pagamento venceu há ${Math.floor(closestDist)} dias`;
+             else if (closestDist > 0 && closestDist <= 1) msg = `Pagamento venceu ontem`;
+             else if (closestDist < 0 && closestDist >= -1) msg = `Pagamento vence amanhã`;
+             else msg = `Pagamento vence hoje`;
+             
+             notifs.push({
+               id: c.id,
+               title: c.nome || c.empresa,
+               msg: msg,
+               dia: diaPagamento
+             });
+          }
+        }
+      }
+    });
+    setClientPaymentNotifications(notifs);
+  }, [clients]);
 
   useEffect(() => {
     let mounted = true;
@@ -2561,7 +2621,7 @@ export default function App() {
         { label: 'Perdidos', value: lostLeads, color: [239, 68, 68] }
       ];
       
-      const head = [['Nome/Empresa', 'Contato', 'Email', 'Origem', 'Status', 'Prioridade', 'Responsável']];
+      const head = [['Nome/Empresa', 'Contato', 'Email', 'Origem', 'Status']];
       
       const tableData = filtered.map((c: any) => {
         return [
@@ -2569,9 +2629,7 @@ export default function App() {
           c.telefone || c.whatsapp || '-',
           c.email || '-',
           c.origem || '-',
-          c.status || 'Proposta Enviada',
-          c.prioridade || 'Média',
-          c.responsavel_atendimento || c.responsavel || '-'
+          c.status || 'Proposta Enviada'
         ];
       });
 
@@ -3532,6 +3590,32 @@ export default function App() {
 
         <div className="max-w-7xl mx-auto pb-20 space-y-10">
           <AnimatePresence>
+            {clientPaymentNotifications.length > 0 && (
+              <motion.div 
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden space-y-4"
+              >
+                {clientPaymentNotifications.map((notif: any) => (
+                  <div key={`client-notif-${notif.id}`} className="bg-amber-500/10 border border-amber-500 p-5 rounded-3xl flex items-center justify-between gap-4 text-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)]">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center shrink-0">
+                        <DollarSign size={24} className="text-slate-950" />
+                      </div>
+                      <div>
+                        <h4 className="font-black text-lg tracking-tight">LEMBRETE DE COBRANÇA: {notif.title}</h4>
+                        <p className="text-sm text-amber-400/80 font-bold mt-1 uppercase tracking-widest flex items-center gap-1">
+                          {notif.msg} (Dia {notif.dia})
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <AnimatePresence>
             {fixedExpensesNotifications.length > 0 && (
               <motion.div 
                 initial={{ height: 0, opacity: 0 }}
@@ -3668,17 +3752,6 @@ export default function App() {
                             </span>
                           </div>
                         )
-                      },
-                      {
-                        key:'status', 
-                        label:'Status', 
-                        render: (val: any) => {
-                          const status = val || 'Pendente';
-                          if (status === 'Confirmado') return <span className="text-emerald-500 flex justify-center" title="Confirmado"><CheckCircle size={18} /></span>;
-                          if (status === 'Concluído') return <span className="text-blue-500 flex justify-center" title="Concluído"><Check size={18} /></span>;
-                          if (status === 'Cancelado') return <span className="text-red-500 flex justify-center" title="Cancelado"><X size={18} /></span>;
-                          return <span className="text-amber-500 flex justify-center" title="Pendente"><Clock size={18} /></span>;
-                        }
                       },
                       {
                         key:'descricao', 
@@ -4203,6 +4276,10 @@ export default function App() {
                            <div className="space-y-2">
                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Origem do Lead</label>
                              <input type="text" placeholder="Ex: Instagram, Indicação, Google" value={formData.origem || ''} onChange={(e) => setFormData({...formData, origem: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
+                           </div>
+                           <div className="space-y-2">
+                             <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Dia de Pagamento</label>
+                             <input type="number" min="1" max="31" placeholder="Ex: 5" value={formData.dia_pagamento || ''} onChange={(e) => setFormData({...formData, dia_pagamento: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50" />
                            </div>
                            <div className="space-y-2 md:col-span-2">
                              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Endereço Completo (com Cidade e Estado)</label>
