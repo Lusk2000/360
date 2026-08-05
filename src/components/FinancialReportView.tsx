@@ -367,12 +367,9 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
                 <thead>
                   <tr className="bg-slate-950/50 border-b border-slate-800">
                     <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-slate-500">Data</th>
-                    <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-slate-500">Tipo</th>
                     <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-slate-500">Cliente/Fornecedor</th>
-                    <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-slate-500">Categoria</th>
                     <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-slate-500">Forma Pgto</th>
                     <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-slate-500 text-right">Valor</th>
-                    <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-slate-500 text-center">Status</th>
                     <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-slate-500 text-center">Ações</th>
                   </tr>
                 </thead>
@@ -385,21 +382,10 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
                   }).sort((a: any, b: any) => new Date(b.data).getTime() - new Date(a.data).getTime()).map((t: any) => (
                     <tr key={t.id} className="hover:bg-slate-800/30 transition-colors">
                       <td className="p-4 text-slate-400 font-mono text-xs">{new Date(t.data).toLocaleDateString('pt-BR', {timeZone:'UTC'})}</td>
-                      <td className="p-4">
-                        <span className={`px-2 py-1 rounded border text-[10px] font-bold uppercase tracking-wider ${t.type === 'income' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
-                          {t.type === 'income' ? 'Entrada' : 'Saída'}
-                        </span>
-                      </td>
                       <td className="p-4 font-medium text-slate-200">{t.cliente || t.descricao || '--'}</td>
-                      <td className="p-4 text-slate-400 text-xs">{t.categoria || 'Geral'}</td>
                       <td className="p-4 text-slate-400 text-xs">{t.forma_pagamento || 'PIX'}</td>
                       <td className={`p-4 text-right font-mono font-bold ${t.type === 'income' ? 'text-emerald-400' : 'text-red-400'}`}>
                         {t.type === 'income' ? '+' : '-'} <FinancialDisplay value={Number(t.valor)} base={t.type === 'income' ? totalIncome : totalExpense} mode={financialDisplayMode} className="inline-flex" />
-                      </td>
-                      <td className="p-4 text-center">
-                        <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${t.type === 'expense' ? 'bg-red-500/10 text-red-400' : (t.status === 'received' ? 'bg-indigo-500/10 text-indigo-400' : 'bg-slate-800 text-slate-400')}`}>
-                          {t.type === 'expense' ? 'Registrada' : (t.status === 'received' ? 'Recebido' : 'Pendente')}
-                        </span>
                       </td>
                       <td className="p-4 flex justify-center gap-2">
                         {permissions?.canEdit('financial_control') && (

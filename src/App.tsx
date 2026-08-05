@@ -3072,8 +3072,9 @@ export default function App() {
         const desc = payload.descricao || '';
         const cat = payload.categoria || 'Serviços';
         const forma = payload.forma_pagamento || 'PIX';
+        const obs = payload.observacao || '';
         
-        const jsonPayload: any = { descricao: desc, categoria: cat, forma_pagamento: forma };
+        const jsonPayload: any = { descricao: desc, categoria: cat, forma_pagamento: forma, observacao: obs };
         if (payload.fixedExpenseId) jsonPayload.fixedExpenseId = payload.fixedExpenseId;
         if (payload.period) jsonPayload.period = payload.period;
         
@@ -4336,6 +4337,10 @@ export default function App() {
                               )}
                             </select>
                           </div>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Observação</label>
+                          <textarea value={formData.observacao || ''} onChange={(e) => setFormData({...formData, observacao: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50 h-24 resize-none" placeholder="Observações adicionais (aparecerá apenas ao abrir o registro)..." />
                         </div>
                       </>
                     )}
