@@ -585,6 +585,15 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
                     </tr>
                   )}
                 </tbody>
+                <tfoot className="bg-slate-900 border-t border-slate-800">
+                  <tr>
+                    <td colSpan={3} className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">Total (Ativos):</td>
+                    <td className="px-6 py-4 text-sm text-red-400 font-black font-mono text-right">
+                      <FinancialDisplay value={fixedExpensesTasks.reduce((acc: number, cur: any) => acc + (cur.active ? Number(cur.value || 0) : 0), 0)} base={totalExpense} mode={financialDisplayMode} className="inline-flex" />
+                    </td>
+                    <td colSpan={2}></td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </Card>

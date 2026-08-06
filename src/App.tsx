@@ -1101,7 +1101,7 @@ Lucro Líquido: Fórmula: Lucro Bruto - Taxas - Impostos - Descontos - Comissõe
 
 // --- App Principal ---
 
-const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_PROFILES, supabase, permissions }: any) => {
+const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_PROFILES, supabase, permissions, setReportType, setReportDateStart, setReportDateEnd, setIsReportModalOpen, pontoReportRequest }: any) => {
   const [currentTime, setCurrentTime] = React.useState(new Date());
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [showHistory, setShowHistory] = React.useState(() => USER_PROFILES[currentUserProfile]?.permissions?.ponto_history_only || false);
@@ -1187,6 +1187,63 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
       setSettingsFormData(baseConfigPonto.userConfigs?.[settingsUserFilter] || baseConfigPonto);
     }
   }, [baseConfigPonto, showSettings, settingsUserFilter]);
+
+  const removeDuplicatePontos = async () => {
+    setIsProcessing(true);
+    try {
+      const { data, error } = await supabase.from('pontos').select('*');
+      if (error) throw error;
+      
+      const toDelete = [];
+      const seen = new Set();
+      
+      const sorted = data.sort((a: any, b: any) => new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime());
+      
+      for (const p of sorted) {
+          if (p.tipo === 'CONFIG') continue;
+          
+          let dateObj = getBRTDate(p.data_hora);
+          const parts = (p.tipo || '').split('::justificativa::');
+          const baseTipo = parts[0];
+          
+          if (baseTipo !== 'Entrada' && dateObj.getHours() < 7) {
+              dateObj = new Date(dateObj.getTime() - 24 * 60 * 60 * 1000);
+          }
+          const dateStr = getBRTDateString(dateObj);
+          
+          const key = `${p.usuario_email}-${dateStr}-${baseTipo}`;
+          if (seen.has(key)) {
+              toDelete.push(p.id);
+          } else {
+              seen.add(key);
+          }
+      }
+      
+      if (toDelete.length === 0) {
+          alert('Nenhuma duplicata encontrada no sistema.');
+          setIsProcessing(false);
+          return;
+      }
+      
+      const confirm = window.confirm(`Foram encontradas ${toDelete.length} duplicatas. Deseja excluí-las permanentemente?`);
+      if (!confirm) {
+          setIsProcessing(false);
+          return;
+      }
+      
+      for (let i = 0; i < toDelete.length; i += 50) {
+          const chunk = toDelete.slice(i, i + 50);
+          await supabase.from('pontos').delete().in('id', chunk);
+      }
+      
+      setPontos((prev: any) => prev.filter((p: any) => !toDelete.includes(p.id)));
+      alert('Duplicatas excluídas com sucesso!');
+    } catch (err: any) {
+      alert('Erro ao remover duplicatas: ' + err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const saveSettings = async () => {
     setIsProcessing(true);
@@ -1351,14 +1408,37 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
     if (!editingPonto || !editTime) return;
     setIsProcessing(true);
     try {
-      const dateObj = new Date(editingPonto.fullDate);
-      const [hours, minutes] = editTime.split(':');
-      dateObj.setHours(parseInt(hours, 10));
-      dateObj.setMinutes(parseInt(minutes, 10));
-      const newDateStr = dateObj.toISOString();
-      const { error } = await supabase.from('pontos').update({ data_hora: newDateStr }).eq('id', editingPonto.id);
+      const brtDateStr = getBRTDateString(editingPonto.fullDate);
+      const newDateStr = new Date(`${brtDateStr}T${editTime}:00-03:00`).toISOString();
+      
+      const { data, error } = await supabase.from('pontos').update({ data_hora: newDateStr }).eq('id', editingPonto.id).select();
       if (error) throw error;
-      setPontos((prev: any) => prev.map((p: any) => p.id === editingPonto.id ? { ...p, data_hora: newDateStr } : p));
+      
+      let finalNewDateStr = newDateStr;
+      
+      if (!data || data.length === 0) {
+          // If RLS blocked the update, let's try delete and insert
+          const { error: delErr } = await supabase.from('pontos').delete().eq('id', editingPonto.id);
+          if (delErr) throw new Error("Não foi possível editar (RLS bloqueou update e falhou no delete): " + delErr.message);
+          
+          const payload = {
+              usuario_email: editingPonto.usuario_email,
+              usuario_nome: USER_PROFILES[editingPonto.usuario_email]?.label || editingPonto.usuario_email,
+              tipo: editingPonto.tipo + (editingPonto.justificativa ? `::justificativa::${editingPonto.justificativa}` : ''),
+              data_hora: newDateStr,
+              latitude: editingPonto.latitude || null,
+              longitude: editingPonto.longitude || null,
+              is_location_valid: false
+          };
+          
+          const { data: insData, error: insErr } = await supabase.from('pontos').insert([payload]).select();
+          if (insErr) throw insErr;
+          if (!insData || insData.length === 0) throw new Error("Falha ao recriar o ponto editado.");
+          
+          finalNewDateStr = insData[0].data_hora;
+      }
+      
+      setPontos((prev: any) => prev.map((p: any) => p.id === editingPonto.id ? { ...p, data_hora: finalNewDateStr } : p));
       setEditingPonto(null);
       alert('Registro editado com sucesso!');
     } catch (err: any) {
@@ -1399,7 +1479,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
     }
     setIsProcessing(true);
     try {
-      const dateObj = new Date(`${manualAddData.data}T${manualAddData.hora}:00`);
+      const dateObj = new Date(`${manualAddData.data}T${manualAddData.hora}:00-03:00`);
       if (isNaN(dateObj.getTime())) {
           alert("Data ou hora inválida.");
           return;
@@ -1721,7 +1801,13 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
     });
     return groups;
   }, [displayPontos, baseConfigPonto]);
-    const exportarFolhaPontoPDF = async () => {
+    React.useEffect(() => {
+        if (pontoReportRequest) {
+            exportarFolhaPontoPDF(pontoReportRequest.start, pontoReportRequest.end, pontoReportRequest.userFilter);
+        }
+    }, [pontoReportRequest]);
+
+    const exportarFolhaPontoPDF = async (start?: string, end?: string, userFilter: string = 'all') => {
     try {
       const [jspdf, autoTableModule] = await Promise.all([
         import('jspdf'),
@@ -1736,8 +1822,17 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
       let isFirstPage = true;
 
       Object.entries(groupedPontos).forEach(([userName, dates]) => {
-        const sortedDays = Object.values(dates).sort((a: any, b: any) => a.dateObj.getTime() - b.dateObj.getTime());
+        const sortedDays = Object.values(dates).sort((a: any, b: any) => a.dateObj.getTime() - b.dateObj.getTime()).filter((day: any) => {
+            const dStr = getBRTDateString(day.dateObj);
+            if (start && dStr < start) return false;
+            if (end && dStr > end) return false;
+            return true;
+        });
+        if (sortedDays.length === 0) return;
         
+        const userEmail = sortedDays.length > 0 ? (sortedDays[0]['Entrada']?.usuario_email || sortedDays[0]['Saída']?.usuario_email || userName) : userName;
+        if (userFilter !== 'all' && userEmail !== userFilter) return;
+
         // Group days by cycle (10th to 9th)
         const cycles: Record<string, any[]> = {};
         sortedDays.forEach((day: any) => {
@@ -1757,7 +1852,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
         });
 
         // Recuperar Configurações
-        const userEmail = sortedDays.length > 0 ? (sortedDays[0]['Entrada']?.usuario_email || userName) : userName;
+
         const uConfig = baseConfigPonto.userConfigs?.[userEmail] || baseConfigPonto;
         const expectedMorning = (timeToMin(uConfig.hora_inicio_almoco) - timeToMin(uConfig.hora_entrada));
         const expectedAfternoon = (timeToMin(uConfig.hora_saida) - timeToMin(uConfig.hora_fim_almoco));
@@ -2058,7 +2153,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
           VER HISTÓRICO DE PONTO
         </Button>
         {permissions?.canExportReport('ponto') && (
-        <Button onClick={exportarFolhaPontoPDF} variant="secondary" className="py-4 px-8 text-sm font-black tracking-widest bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20">
+        <Button onClick={() => { setReportType('ponto'); setReportDateStart(''); setReportDateEnd(''); setIsReportModalOpen(true); }} variant="secondary" className="py-4 px-8 text-sm font-black tracking-widest bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20">
           <Download size={16} className="mr-2" /> RELATÓRIO PDF
         </Button>
         )}
@@ -2408,9 +2503,12 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
             </div>
 
             </div>
-            <div className="p-6 border-t border-slate-800 flex-shrink-0 bg-slate-900">
-              <Button onClick={saveSettings} disabled={isProcessing} className="bg-emerald-600 hover:bg-emerald-500 text-white w-full font-bold tracking-widest text-xs py-4">
+            <div className="p-6 border-t border-slate-800 flex-shrink-0 bg-slate-900 flex gap-2">
+              <Button onClick={saveSettings} disabled={isProcessing} className="bg-emerald-600 hover:bg-emerald-500 text-white flex-1 font-bold tracking-widest text-xs py-4">
                 {isProcessing ? '...' : 'SALVAR CONFIGURAÇÕES'}
+              </Button>
+              <Button onClick={removeDuplicatePontos} disabled={isProcessing} className="bg-red-600 hover:bg-red-500 text-white flex-1 font-bold tracking-widest text-xs py-4">
+                REMOVER DUPLICADAS
               </Button>
             </div>
           </motion.div>
@@ -2423,6 +2521,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
 export default function App() {
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [pontoReportRequest, setPontoReportRequest] = useState<any>(null);
   const [reportDateStart, setReportDateStart] = useState('');
   const [reportDateEnd, setReportDateEnd] = useState('');
   const [reportType, setReportType] = useState<string>('');
@@ -2891,7 +2990,10 @@ export default function App() {
       periodStr = `Até ${end.split('-').reverse().join('/')}`;
     }
 
-    if (type === 'agenda') {
+    if (type === 'ponto') {
+      setPontoReportRequest({ start, end, userFilter, ts: Date.now() });
+      return;
+    } else if (type === 'agenda') {
       let filtered = appointments;
       if (start) filtered = filtered.filter((a:any) => a.data >= start);
       if (end) filtered = filtered.filter((a:any) => a.data <= end);
@@ -3445,7 +3547,7 @@ export default function App() {
     try {
       const collectionName: any = {
         'clients': 'clients',
-        'servicos': 'clients',
+        'servicos': 'servicos',
         'financial_control': 'transactions',
         'agenda': 'appointments',
         'tasks': 'tasks'
@@ -3689,6 +3791,8 @@ export default function App() {
         }
         throw error;
       }
+      
+      fetchCollections(collectionName);
     } catch (err: any) {
       if(err?.message === "Failed to fetch") { console.warn("Erro ao excluir:", err); } else { console.error("Erro ao excluir:", err); }
     } finally {
@@ -4437,7 +4541,7 @@ export default function App() {
               )}
               {activeTab === 'ponto' && (
                 <PontoView currentUserProfile={currentUserProfile} pontos={pontos} setPontos={setPontos} isSystemAdmin={isSystemAdmin}
-                  USER_PROFILES={USER_PROFILES} supabase={supabase} permissions={permissions} />
+                  USER_PROFILES={USER_PROFILES} supabase={supabase} permissions={permissions} setReportType={setReportType} setReportDateStart={setReportDateStart} setReportDateEnd={setReportDateEnd} setIsReportModalOpen={setIsReportModalOpen} pontoReportRequest={pontoReportRequest} />
               )}
             </motion.div>
           </AnimatePresence>
@@ -4858,7 +4962,7 @@ export default function App() {
                 </button>
               </div>
               <div className="p-6 space-y-4 overflow-y-auto flex-1">
-                {(reportType === 'tasks' || reportType === 'productivity') && USER_PROFILES[currentUserProfile]?.role === 'administrator' && (
+                {(reportType === 'tasks' || reportType === 'productivity' || reportType === 'ponto') && USER_PROFILES[currentUserProfile]?.role === 'administrator' && (
                   <div>
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Usuário</label>
                     <select
