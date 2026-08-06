@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { generateExecutiveReport } from '../utils/pdfGenerator';
 import { getFixedExpensesTasks, parseFixedExpense } from '../utils/fixedExpenses';
-import { Search, Download, ArrowUpCircle, Plus, DollarSign, TrendingUp, TrendingDown, Activity, FileText, PieChart, BarChart3, CreditCard, Edit3, Trash2, CalendarIcon, CheckCircle, X } from 'lucide-react';
+import { Search, Download, ArrowUpCircle, Plus, DollarSign, TrendingUp, TrendingDown, Activity, FileText, PieChart, BarChart3, CreditCard, Edit3, Trash2, CalendarIcon, CheckCircle, X, Paperclip, Upload } from 'lucide-react';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell, Legend } from 'recharts';
 import { FinancialDisplay, DisplayModeToggle } from './FinancialDisplay';
 
@@ -87,6 +87,79 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
   const [isFixedExpenseModalOpen, setIsFixedExpenseModalOpen] = useState(false);
   const [fixedExpenseForm, setFixedExpenseForm] = useState<any>({});
   const [isProcessing, setIsProcessing] = useState(false);
+  const [receiptModalTx, setReceiptModalTx] = useState<any>(null);
+
+  const handleDeleteReceipt = async (tx: any) => {
+    if (!confirm('Tem certeza que deseja excluir o comprovante deste registro?')) return;
+    setIsProcessing(true);
+    try {
+      let parsed: any = {};
+      if (tx._raw_descricao) {
+        try { parsed = JSON.parse(tx._raw_descricao); } catch(e) {}
+      } else if (tx.descricao && typeof tx.descricao === 'string' && tx.descricao.startsWith('{')) {
+        try { parsed = JSON.parse(tx.descricao); } catch(e) {}
+      } else {
+        parsed = { descricao: tx.descricao || '' };
+      }
+      
+      parsed.comprovante_url = '';
+      parsed.comprovante_nome = '';
+      
+      const { error } = await supabase
+        .from('transactions')
+        .update({ descricao: JSON.stringify(parsed) })
+        .eq('id', tx.id);
+
+      if (error) throw error;
+      if (fetchCollections) fetchCollections('transactions');
+      setReceiptModalTx(null);
+    } catch (err) {
+      console.error('Erro ao excluir comprovante:', err);
+      alert('Erro ao excluir comprovante.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleUploadReceipt = async (tx: any, file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      alert('O arquivo deve ter no máximo 5MB.');
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const base64 = e.target?.result as string;
+        let parsed: any = {};
+        if (tx._raw_descricao) {
+          try { parsed = JSON.parse(tx._raw_descricao); } catch(e) {}
+        } else if (tx.descricao && typeof tx.descricao === 'string' && tx.descricao.startsWith('{')) {
+          try { parsed = JSON.parse(tx.descricao); } catch(e) {}
+        } else {
+          parsed = { descricao: tx.descricao || '' };
+        }
+
+        parsed.comprovante_url = base64;
+        parsed.comprovante_nome = file.name;
+
+        const { error } = await supabase
+          .from('transactions')
+          .update({ descricao: JSON.stringify(parsed) })
+          .eq('id', tx.id);
+
+        if (error) throw error;
+        if (fetchCollections) fetchCollections('transactions');
+        setReceiptModalTx((prev: any) => prev ? { ...prev, comprovante_url: base64, comprovante_nome: file.name } : null);
+        setIsProcessing(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Erro ao anexar comprovante:', err);
+      alert('Erro ao anexar comprovante.');
+      setIsProcessing(false);
+    }
+  };
   
   const fixedExpensesTasks = useMemo(() => getFixedExpensesTasks(tasks).map(parseFixedExpense).filter(Boolean), [tasks]);
   
@@ -369,6 +442,7 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
                     <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-slate-500">Data</th>
                     <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-slate-500">Cliente/Fornecedor</th>
                     <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-slate-500">Forma Pgto</th>
+                    <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-slate-500 text-center">Comprovante</th>
                     <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-slate-500 text-right">Valor</th>
                     <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-slate-500 text-center">Ações</th>
                   </tr>
@@ -384,6 +458,27 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
                       <td className="p-4 text-slate-400 font-mono text-xs">{new Date(t.data).toLocaleDateString('pt-BR', {timeZone:'UTC'})}</td>
                       <td className="p-4 font-medium text-slate-200">{t.cliente || t.descricao || '--'}</td>
                       <td className="p-4 text-slate-400 text-xs">{t.forma_pagamento || 'PIX'}</td>
+                      <td className="p-4 text-center">
+                        {t.comprovante_url ? (
+                          <button
+                            onClick={() => setReceiptModalTx(t)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-bold transition-all shadow-sm"
+                            title="Ver Comprovante"
+                          >
+                            <Paperclip size={13} />
+                            <span>Ver Anexo</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setReceiptModalTx(t)}
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-slate-900/80 hover:bg-slate-800 text-slate-500 hover:text-slate-300 border border-slate-800 rounded-lg text-xs font-medium transition-all"
+                            title="Anexar Comprovante"
+                          >
+                            <Plus size={12} />
+                            <span>Anexar</span>
+                          </button>
+                        )}
+                      </td>
                       <td className={`p-4 text-right font-mono font-bold ${t.type === 'income' ? 'text-emerald-400' : 'text-red-400'}`}>
                         {t.type === 'income' ? '+' : '-'} <FinancialDisplay value={Number(t.valor)} base={t.type === 'income' ? totalIncome : totalExpense} mode={financialDisplayMode} className="inline-flex" />
                       </td>
@@ -403,7 +498,7 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
                   ))}
                   {transactions.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="p-8 text-center text-slate-500 italic">Nenhuma movimentação registrada no período.</td>
+                      <td colSpan={6} className="p-8 text-center text-slate-500 italic">Nenhuma movimentação registrada no período.</td>
                     </tr>
                   )}
                 </tbody>
@@ -673,6 +768,127 @@ export default function FinancialReportView({ transactions, tasks = [], fetchCol
               </button>
               <button disabled={isProcessing} onClick={handleSaveFixedExpense} className="flex-1 py-3 text-slate-950 bg-emerald-500 hover:bg-emerald-400 rounded-xl font-bold uppercase tracking-widest text-xs transition-colors shadow-lg shadow-emerald-500/20 disabled:opacity-50">
                 {isProcessing ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {receiptModalTx && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center p-6 border-b border-slate-800 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <Paperclip size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white tracking-tight">Comprovante do Registro</h3>
+                  <p className="text-xs text-slate-400">{receiptModalTx.cliente || receiptModalTx.descricao || 'Lançamento'}</p>
+                </div>
+              </div>
+              <button onClick={() => setReceiptModalTx(null)} className="text-slate-400 hover:text-white transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 space-y-4 custom-scrollbar">
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800/80 grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-slate-500 font-medium block">Valor</span>
+                  <span className={`font-mono font-bold text-sm ${receiptModalTx.type === 'income' ? 'text-emerald-400' : 'text-red-400'}`}>
+                    R$ {Number(receiptModalTx.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-medium block">Data</span>
+                  <span className="font-mono text-slate-200 font-bold">
+                    {new Date(receiptModalTx.data).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
+                  </span>
+                </div>
+              </div>
+
+              {receiptModalTx.comprovante_url ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-400">
+                    <span>Arquivo Anexado:</span>
+                    <span className="text-emerald-400 font-mono truncate max-w-[200px]">{receiptModalTx.comprovante_nome || 'comprovante'}</span>
+                  </div>
+
+                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-2 flex items-center justify-center min-h-[220px] max-h-[350px] overflow-hidden">
+                    {receiptModalTx.comprovante_url.startsWith('data:image/') || receiptModalTx.comprovante_url.match(/\.(jpeg|jpg|gif|png|webp)/i) ? (
+                      <img
+                        src={receiptModalTx.comprovante_url}
+                        alt="Comprovante"
+                        className="max-h-[320px] max-w-full object-contain rounded-lg"
+                      />
+                    ) : (
+                      <iframe
+                        src={receiptModalTx.comprovante_url}
+                        title="Visualização do Comprovante"
+                        className="w-full h-[280px] rounded-lg border-0"
+                      />
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-2">
+                    <a
+                      href={receiptModalTx.comprovante_url}
+                      download={receiptModalTx.comprovante_nome || 'comprovante'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 bg-emerald-500 text-slate-950 hover:bg-emerald-400 font-bold py-2.5 px-4 rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md"
+                    >
+                      <Download size={15} /> Baixar / Abrir
+                    </a>
+                    {permissions?.canEdit('financial_control') && (
+                      <button
+                        type="button"
+                        disabled={isProcessing}
+                        onClick={() => handleDeleteReceipt(receiptModalTx)}
+                        className="bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/30 font-bold py-2.5 px-4 rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                      >
+                        <Trash2 size={15} /> Excluir Comprovante
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4 py-4">
+                  <div className="text-center space-y-1">
+                    <p className="text-sm font-bold text-slate-300">Nenhum comprovante anexado a este registro.</p>
+                    <p className="text-xs text-slate-500">Selecione uma imagem ou documento PDF para enviar.</p>
+                  </div>
+
+                  {permissions?.canEdit('financial_control') && (
+                    <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-800 hover:border-emerald-500/50 rounded-2xl bg-slate-950/80 cursor-pointer transition-all group">
+                      <div className="w-12 h-12 rounded-full bg-slate-900 border border-slate-800 group-hover:border-emerald-500/40 flex items-center justify-center text-slate-400 group-hover:text-emerald-400 transition-all mb-2">
+                        <Upload size={22} />
+                      </div>
+                      <span className="text-xs font-bold text-slate-200 group-hover:text-emerald-400 uppercase tracking-wider">
+                        Clique para Selecionar Arquivo
+                      </span>
+                      <span className="text-[10px] text-slate-500 mt-1">Imagens (PNG, JPG) ou PDF até 5MB</span>
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadReceipt(receiptModalTx, file);
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-800 bg-slate-900 flex justify-end">
+              <button
+                onClick={() => setReceiptModalTx(null)}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold px-5 py-2 rounded-xl text-xs uppercase tracking-wider transition-all"
+              >
+                Fechar
               </button>
             </div>
           </div>

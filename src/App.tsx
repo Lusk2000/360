@@ -14,7 +14,7 @@ import {
   Calendar as CalendarIcon, ChevronLeft, ChevronRight, 
   Check, Flag, User, Lock, ShieldCheck, AlertCircle, LogOut, 
   ChevronsUpDown, CheckSquare, ListTodo, FileDown, BookOpen, Search, Wallet, TrendingUp, Building2, PiggyBank, Shield
-, RefreshCw, FileText, BarChart2, Download, Settings } from 'lucide-react';
+, RefreshCw, FileText, BarChart2, Download, Settings, Paperclip } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import FinancialReportView from './components/FinancialReportView';
 import { FinancialDisplay, DisplayModeToggle } from './components/FinancialDisplay';
@@ -1194,7 +1194,7 @@ const PontoView = ({ currentUserProfile, pontos, setPontos, isSystemAdmin, USER_
       const { data, error } = await supabase.from('pontos').select('*');
       if (error) throw error;
       
-      const toDelete = [];
+      const toDelete: any[] = [];
       const seen = new Set();
       
       const sorted = data.sort((a: any, b: any) => new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime());
@@ -3631,8 +3631,17 @@ export default function App() {
         const cat = payload.categoria || 'Serviços';
         const forma = payload.forma_pagamento || 'PIX';
         const obs = payload.observacao || '';
+        const compUrl = payload.comprovante_url || '';
+        const compNome = payload.comprovante_nome || '';
         
-        const jsonPayload: any = { descricao: desc, categoria: cat, forma_pagamento: forma, observacao: obs };
+        const jsonPayload: any = { 
+          descricao: desc, 
+          categoria: cat, 
+          forma_pagamento: forma, 
+          observacao: obs,
+          comprovante_url: compUrl,
+          comprovante_nome: compNome
+        };
         if (payload.fixedExpenseId) jsonPayload.fixedExpenseId = payload.fixedExpenseId;
         if (payload.period) jsonPayload.period = payload.period;
         
@@ -4612,6 +4621,22 @@ export default function App() {
                         ) : (
                           <span className="px-2 py-1 bg-red-500/10 text-red-400 rounded-md text-[10px] font-bold uppercase tracking-wider">Pago</span>
                         )
+                      },
+                      {
+                        key: 'comprovante',
+                        label: 'Comprovante',
+                        render: (_: any, item: any) => item.comprovante_url ? (
+                          <a
+                            href={item.comprovante_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-md font-bold text-[11px] hover:bg-emerald-500/20 transition-all"
+                          >
+                            <Paperclip size={12} /> Anexo
+                          </a>
+                        ) : (
+                          <span className="text-slate-600 text-xs italic">Sem anexo</span>
+                        )
                       }
                     ]}
                   />
@@ -4930,6 +4955,70 @@ export default function App() {
                         <div className="space-y-2">
                           <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Observação</label>
                           <textarea value={formData.observacao || ''} onChange={(e) => setFormData({...formData, observacao: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50 h-24 resize-none" placeholder="Observações adicionais (aparecerá apenas ao abrir o registro)..." />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center justify-between">
+                            <span>Comprovante / Anexo</span>
+                            {formData.comprovante_url && (
+                              <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Anexado</span>
+                            )}
+                          </label>
+                          {formData.comprovante_url ? (
+                            <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3 overflow-hidden">
+                                {formData.comprovante_url.startsWith('data:image/') ? (
+                                  <img src={formData.comprovante_url} alt="Comprovante" className="w-10 h-10 object-cover rounded-lg border border-slate-800 shrink-0" />
+                                ) : (
+                                  <div className="w-10 h-10 bg-slate-900 border border-slate-800 rounded-lg flex items-center justify-center shrink-0 text-emerald-400">
+                                    <FileText size={20} />
+                                  </div>
+                                )}
+                                <div className="truncate text-xs">
+                                  <p className="font-bold text-slate-200 truncate">{formData.comprovante_nome || 'Comprovante'}</p>
+                                  <a href={formData.comprovante_url} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline text-[11px]">Visualizar / Baixar</a>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setFormData({ ...formData, comprovante_url: '', comprovante_nome: '' })}
+                                className="p-2 text-slate-500 hover:text-red-400 bg-slate-900 hover:bg-red-500/10 border border-slate-800 hover:border-red-500/30 rounded-lg transition-all"
+                                title="Remover Comprovante"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          ) : (
+                            <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-800 hover:border-emerald-500/50 rounded-xl bg-slate-950/50 hover:bg-slate-950 cursor-pointer transition-all group">
+                              <div className="flex items-center gap-2 text-slate-400 group-hover:text-emerald-400 transition-colors">
+                                <Paperclip size={18} />
+                                <span className="text-xs font-bold uppercase tracking-wider">Anexar Comprovante (Imagem / PDF)</span>
+                              </div>
+                              <span className="text-[10px] text-slate-600 mt-1">Clique para selecionar um arquivo</span>
+                              <input
+                                type="file"
+                                accept="image/*,application/pdf"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  if (file.size > 5 * 1024 * 1024) {
+                                    alert('O arquivo deve ter no máximo 5MB.');
+                                    return;
+                                  }
+                                  const reader = new FileReader();
+                                  reader.onload = (evt) => {
+                                    const base64 = evt.target?.result as string;
+                                    setFormData({
+                                      ...formData,
+                                      comprovante_url: base64,
+                                      comprovante_nome: file.name
+                                    });
+                                  };
+                                  reader.readAsDataURL(file);
+                                }}
+                              />
+                            </label>
+                          )}
                         </div>
                       </>
                     )}
