@@ -1,4 +1,5 @@
 import { CRMView } from './components/CRMView';
+import NotesView from './components/NotesView';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -66,7 +67,7 @@ const USER_PROFILES: any = {
     label: 'Lucas',
     email: 'lucas360admin@gmail.com',
     permissions: { 
-      allowed_tabs: ['clients', 'servicos', 'financial_control', 'agenda', 'tasks', 'ponto'],
+      allowed_tabs: ['clients', 'servicos', 'financial_control', 'agenda', 'tasks', 'ponto', 'notes'],
       financial: 'view',
       reports: 'none',
       can_delete: true
@@ -77,7 +78,7 @@ const USER_PROFILES: any = {
     label: 'Nubia',
     email: 'nubia360admin@gmail.com',
     permissions: { 
-      allowed_tabs: ['clients', 'servicos', 'financial_control', 'agenda', 'tasks', 'ponto'],
+      allowed_tabs: ['clients', 'servicos', 'financial_control', 'agenda', 'tasks', 'ponto', 'notes'],
       financial: 'full',
       reports: 'full',
       can_delete: true
@@ -88,7 +89,7 @@ const USER_PROFILES: any = {
     label: 'Vagner',
     email: 'vagnergestor360@gmail.com',
     permissions: { 
-      allowed_tabs: ['clients', 'servicos', 'financial_control', 'agenda', 'tasks', 'ponto'],
+      allowed_tabs: ['clients', 'servicos', 'financial_control', 'agenda', 'tasks', 'ponto', 'notes'],
       financial: 'full',
       reports: 'full',
       ponto_history_only: true,
@@ -100,7 +101,7 @@ const USER_PROFILES: any = {
     label: 'Luan',
     email: 'luan360@gmail.com',
     permissions: { 
-      allowed_tabs: ['clients', 'servicos', 'financial_control', 'agenda', 'tasks', 'ponto'],
+      allowed_tabs: ['clients', 'servicos', 'financial_control', 'agenda', 'tasks', 'ponto', 'notes'],
       financial: 'view',
       reports: 'none',
       can_delete: true
@@ -111,7 +112,7 @@ const USER_PROFILES: any = {
     label: 'Caetano',
     email: 'caetanomentor360@gmail.com',
     permissions: { 
-      allowed_tabs: ['clients', 'agenda', 'tasks', 'financial_control'],
+      allowed_tabs: ['clients', 'agenda', 'tasks', 'financial_control', 'notes'],
       financial: 'view',
       reports: 'none',
       can_delete: true
@@ -122,9 +123,20 @@ const USER_PROFILES: any = {
     label: 'Gabriel',
     email: 'gabriel360@gmail.com',
     permissions: { 
-      allowed_tabs: ['ponto', 'clients', 'agenda', 'tasks'],
+      allowed_tabs: ['ponto', 'clients', 'agenda', 'tasks', 'notes'],
       financial: 'none',
       reports: 'none',
+      can_delete: true
+    } 
+  },
+  'renatacontadora360@gmail.com': { 
+    role: 'administrator', 
+    label: 'Renata',
+    email: 'renatacontadora360@gmail.com',
+    permissions: { 
+      allowed_tabs: ['financial_control', 'notes'],
+      financial: 'full',
+      reports: 'full',
       can_delete: true
     } 
   },
@@ -133,7 +145,7 @@ const USER_PROFILES: any = {
     label: 'Cassio',
     email: 'cassio360@gmail.com',
     permissions: { 
-      allowed_tabs: ['clients', 'tasks'],
+      allowed_tabs: ['clients', 'tasks', 'notes'],
       financial: 'none',
       reports: 'none',
       can_delete: true
@@ -267,6 +279,7 @@ const navItems = [
   { id: 'agenda', label: 'Agenda', icon: CalendarIcon, protected: false },
   { id: 'tasks', label: 'Tarefas', icon: ListTodo, protected: false },
   { id: 'financial_control', label: 'Finanças', icon: DollarSign, protected: true },
+  { id: 'notes', label: 'Anotações', icon: FileText, protected: false },
 ];
 
 // --- Sub-componentes do Dashboard e Visões ---
@@ -2681,7 +2694,7 @@ export default function App() {
       if (tab === 'financial_control' || tab === 'transactions') return p.financial === 'full';
       if (tab === 'agenda' || tab === 'appointments') return p.allowed_tabs?.includes('agenda');
       if (tab === 'servicos') return p.allowed_tabs?.includes('servicos');
-      if (tab === 'clients' || tab === 'tasks' || tab === 'ponto') return p.allowed_tabs?.includes(tab);
+      if (tab === 'clients' || tab === 'tasks' || tab === 'ponto' || tab === 'notes') return p.allowed_tabs?.includes(tab);
       return false;
     };
     const canDelete = (tab?: string) => {
@@ -2689,12 +2702,12 @@ export default function App() {
       if (tab === 'financial_control' || tab === 'transactions') return p.financial === 'full';
       if (tab === 'agenda' || tab === 'appointments') return p.allowed_tabs?.includes('agenda');
       if (tab === 'servicos') return p.allowed_tabs?.includes('servicos');
-      if (tab === 'clients' || tab === 'tasks' || tab === 'ponto') return p.allowed_tabs?.includes(tab);
+      if (tab === 'clients' || tab === 'tasks' || tab === 'ponto' || tab === 'notes') return p.allowed_tabs?.includes(tab);
       return false;
     };
     const canExportReport = (reportType: string) => {
       if (reportType === 'finance') {
-        return currentUserProfile === 'vagnergestor360@gmail.com' || currentUserProfile === 'nubia360admin@gmail.com';
+        return currentUserProfile === 'vagnergestor360@gmail.com' || currentUserProfile === 'nubia360admin@gmail.com' || currentUserProfile === 'renatacontadora360@gmail.com';
       }
       if (p?.reports === 'full') return true;
       if (reportType === 'tasks' && p?.allowed_tabs?.includes('tasks')) return true;
@@ -2706,10 +2719,12 @@ export default function App() {
   // Bloqueio de abas protegidas com base em permissões granulares
   useEffect(() => {
     if (!permissions.canView(activeTab)) {
-      setActiveTab('ponto');
+      const allowed = USER_PROFILES[currentUserProfile]?.permissions?.allowed_tabs || [];
+      const fallbackTab = allowed.find((tab: string) => permissions.canView(tab)) || allowed[0] || 'financial_control';
+      setActiveTab(fallbackTab);
       setFormData({});
     }
-  }, [permissions, activeTab]);
+  }, [permissions, activeTab, currentUserProfile]);
 
   const handleProfileSwitchRequest = (profileKey: string) => {
     if (profileKey === currentUserProfile) return;
@@ -4551,6 +4566,17 @@ export default function App() {
               {activeTab === 'ponto' && (
                 <PontoView currentUserProfile={currentUserProfile} pontos={pontos} setPontos={setPontos} isSystemAdmin={isSystemAdmin}
                   USER_PROFILES={USER_PROFILES} supabase={supabase} permissions={permissions} setReportType={setReportType} setReportDateStart={setReportDateStart} setReportDateEnd={setReportDateEnd} setIsReportModalOpen={setIsReportModalOpen} pontoReportRequest={pontoReportRequest} />
+              )}
+              {activeTab === 'notes' && (
+                <NotesView 
+                  currentUserProfile={currentUserProfile} 
+                  user={user} 
+                  supabase={supabase} 
+                  USER_PROFILES={USER_PROFILES} 
+                  permissions={permissions} 
+                  tasks={tasks} 
+                  fetchCollections={fetchCollections} 
+                />
               )}
             </motion.div>
           </AnimatePresence>

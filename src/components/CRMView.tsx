@@ -43,7 +43,7 @@ export const CRMView = ({
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [searchTerm, setSearchTerm] = useState('');
   
-  const allowedNames = ['Luan', 'Lucas', 'Nubia', 'Vagner', 'Caetano'];
+  const allowedNames = ['Luan', 'Lucas', 'Nubia', 'Vagner', 'Caetano', 'Renata'];
   const userLabel = USER_PROFILES && USER_PROFILES[currentUserProfile] ? USER_PROFILES[currentUserProfile].label : '';
   const canViewValor = allowedNames.includes(userLabel);
   const [selectedClient, setSelectedClient] = useState<any>(null);
