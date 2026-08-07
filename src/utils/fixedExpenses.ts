@@ -154,9 +154,13 @@ export const syncFixedExpenses = async (tasks: any[], transactions: any[], supab
          
          try {
             const { error } = await supabase.from('transactions').insert(payload);
-            if (!error) inserted = true;
+            if (!error) {
+              inserted = true;
+            } else if (error.message?.includes('Failed to fetch')) {
+              console.warn('Error inserting fixed expense:', error.message);
+            }
          } catch (e: any) {
-            if(e?.message?.includes('Failed to fetch')) { console.warn('Error inserting fixed expense:', e); } else { console.error('Error inserting fixed expense:', e); }
+            console.warn('Error inserting fixed expense:', e?.message || e);
          }
          
          if (ft.recurrence === 'Semanal') {

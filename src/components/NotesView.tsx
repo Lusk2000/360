@@ -104,67 +104,86 @@ export const NotesView: React.FC<NotesViewProps> = ({
 
   // Load notes from local storage and Supabase tasks table
   useEffect(() => {
-    // 1. Load from localStorage
+    let localNotes: Note[] = [];
     try {
       const saved = localStorage.getItem(localKey);
       if (saved) {
-        setNotes(JSON.parse(saved));
+        localNotes = JSON.parse(saved);
       }
     } catch (e) {
       console.warn('Erro ao carregar anotações locais:', e);
     }
 
-    // 2. Extract notes from Supabase tasks table (tasks starting with [ANOTACAO])
-    if (tasks && tasks.length > 0) {
-      const dbNotes: Note[] = tasks
-        .filter((t: any) => t.titulo && t.titulo.startsWith('[ANOTACAO]'))
-        .map((t: any) => {
-          let title = t.titulo.replace('[ANOTACAO]', '').trim();
-          let category = 'Finanças';
-          let color = 'emerald';
-          let isPinned = false;
-
-          // Check if metadata encoded in JSON inside description
-          let content = t.descricao || '';
-          try {
-            if (content.startsWith('{') && content.endsWith('}')) {
-              const parsed = JSON.parse(content);
-              if (parsed.content) {
-                content = parsed.content;
-                category = parsed.category || category;
-                color = parsed.color || color;
-                isPinned = parsed.isPinned || false;
-              }
-            }
-          } catch (_) {
-            // plain text
-          }
-
-          return {
-            id: t.id,
-            supabaseId: t.id,
-            title: title || 'Anotação sem título',
-            content,
-            category,
-            color,
-            isPinned,
-            createdAt: t.created_at || new Date().toISOString(),
-            updatedAt: t.updated_at || new Date().toISOString(),
-            responsavel: t.responsavel || currentUserProfile
-          };
-        });
-
-      if (dbNotes.length > 0) {
-        setNotes(prev => {
-          // Merge local notes and db notes by id
-          const map = new Map<string, Note>();
-          prev.forEach(n => map.set(n.id, n));
-          dbNotes.forEach(n => map.set(n.id, n));
-          const merged = Array.from(map.values());
-          localStorage.setItem(localKey, JSON.stringify(merged));
-          return merged;
-        });
+    const deletedKey = `${localKey}_deleted`;
+    let deletedIds = new Set<string>();
+    try {
+      const savedDeleted = localStorage.getItem(deletedKey);
+      if (savedDeleted) {
+        deletedIds = new Set(JSON.parse(savedDeleted));
       }
+    } catch (_) {}
+
+    if (!tasks) {
+      setNotes(localNotes.filter(n => !deletedIds.has(n.id) && (!n.supabaseId || !deletedIds.has(n.supabaseId))));
+      return;
+    }
+
+    // Extract notes from Supabase tasks table (tasks starting with [ANOTACAO])
+    const dbNotes: Note[] = tasks
+      .filter((t: any) => t.titulo && t.titulo.startsWith('[ANOTACAO]') && !deletedIds.has(String(t.id)))
+      .map((t: any) => {
+        let title = t.titulo.replace('[ANOTACAO]', '').trim();
+        let category = 'Finanças';
+        let color = 'emerald';
+        let isPinned = false;
+
+        let content = t.descricao || '';
+        try {
+          if (content.startsWith('{') && content.endsWith('}')) {
+            const parsed = JSON.parse(content);
+            if (parsed.content !== undefined) {
+              content = parsed.content;
+              category = parsed.category || category;
+              color = parsed.color || color;
+              isPinned = parsed.isPinned || false;
+            }
+          }
+        } catch (_) {}
+
+        return {
+          id: String(t.id),
+          supabaseId: String(t.id),
+          title: title || 'Anotação sem título',
+          content,
+          category,
+          color,
+          isPinned,
+          createdAt: t.created_at || new Date().toISOString(),
+          updatedAt: t.updated_at || new Date().toISOString(),
+          responsavel: t.responsavel || currentUserProfile
+        };
+      });
+
+    const dbNoteIds = new Set(dbNotes.map(n => n.id));
+
+    // Keep local-only notes that have no matching DB entry and were not deleted
+    const localOnlyNotes = localNotes.filter(
+      n => !deletedIds.has(n.id) && (!n.supabaseId || !deletedIds.has(n.supabaseId)) && n.id.startsWith('note_') && (!n.supabaseId || !dbNoteIds.has(n.supabaseId))
+    );
+
+    const merged = [...dbNotes, ...localOnlyNotes];
+
+    merged.sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    });
+
+    setNotes(merged);
+    try {
+      localStorage.setItem(localKey, JSON.stringify(merged));
+    } catch (e) {
+      console.warn('Erro ao salvar local storage:', e);
     }
   }, [tasks, localKey, currentUserProfile]);
 
@@ -279,20 +298,49 @@ export const NotesView: React.FC<NotesViewProps> = ({
 
   // Delete note
   const handleDeleteNote = async (id: string, supabaseId?: string) => {
-    if (!window.confirm('Tem certeza que deseja excluir esta anotação?')) return;
+    const targetSupabaseId = supabaseId || (!id.startsWith('note_') ? id : undefined);
 
-    if (supabase && supabaseId) {
+    // Save deleted ID to persistent deleted list so useEffect won't resurrect it
+    const deletedKey = `${localKey}_deleted`;
+    try {
+      const savedDeleted = localStorage.getItem(deletedKey);
+      const deletedIds = savedDeleted ? JSON.parse(savedDeleted) : [];
+      if (id && !deletedIds.includes(id)) deletedIds.push(id);
+      if (targetSupabaseId && !deletedIds.includes(targetSupabaseId)) deletedIds.push(targetSupabaseId);
+      localStorage.setItem(deletedKey, JSON.stringify(deletedIds));
+    } catch (e) {
+      console.warn('Erro ao salvar lista de excluídos:', e);
+    }
+
+    // Update local state and localStorage immediately
+    setNotes(prev => {
+      const updated = prev.filter(n => n.id !== id && (!targetSupabaseId || n.supabaseId !== targetSupabaseId));
       try {
-        await supabase.from('tasks').delete().eq('id', supabaseId);
-        if (fetchCollections) fetchCollections('tasks');
+        localStorage.setItem(localKey, JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Erro ao salvar local storage:', e);
+      }
+      return updated;
+    });
+
+    if (viewingNote?.id === id || (targetSupabaseId && viewingNote?.supabaseId === targetSupabaseId)) {
+      setViewingNote(null);
+    }
+
+    // Delete record from Supabase
+    if (supabase && targetSupabaseId) {
+      try {
+        const { error } = await supabase.from('tasks').delete().eq('id', targetSupabaseId);
+        if (error) {
+          console.warn('Erro ao excluir no Supabase:', error);
+        }
+        if (fetchCollections) {
+          fetchCollections('tasks');
+        }
       } catch (err) {
         console.warn('Erro ao excluir no Supabase:', err);
       }
     }
-
-    const updated = notes.filter(n => n.id !== id);
-    saveLocalNotes(updated);
-    if (viewingNote?.id === id) setViewingNote(null);
   };
 
   // Toggle pin
@@ -381,6 +429,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
           </div>
 
           <button
+            id="btn-notes-new-top"
             onClick={handleOpenNew}
             className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-6 py-4 rounded-2xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-[0_0_25px_rgba(16,185,129,0.25)] cursor-pointer group"
           >
@@ -396,6 +445,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
         <div className="relative flex-1">
           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
           <input
+            id="input-notes-search"
             type="text"
             placeholder="Pesquisar por título, conteúdo ou tag..."
             value={searchTerm}
@@ -404,6 +454,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
           />
           {searchTerm && (
             <button
+              id="btn-notes-clear-search"
               onClick={() => setSearchTerm('')}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
             >
@@ -415,6 +466,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
         {/* Category Pills */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
           <button
+            id="btn-notes-cat-all"
             onClick={() => setSelectedCategory('Todas')}
             className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all ${
               selectedCategory === 'Todas'
@@ -430,6 +482,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
             return (
               <button
                 key={cat}
+                id={`btn-notes-cat-${cat.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')}`}
                 onClick={() => setSelectedCategory(cat)}
                 className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all ${
                   isSel
@@ -446,7 +499,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
 
       {/* Notes Grid */}
       {filteredNotes.length === 0 ? (
-        <div className="bg-slate-900/40 border border-slate-800/80 rounded-3xl p-12 text-center space-y-4">
+        <div id="notes-empty-state" className="bg-slate-900/40 border border-slate-800/80 rounded-3xl p-12 text-center space-y-4">
           <div className="w-16 h-16 rounded-2xl bg-slate-800/60 border border-slate-700/50 flex items-center justify-center text-slate-500 mx-auto">
             <FileText size={32} />
           </div>
@@ -459,6 +512,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
             </p>
           </div>
           <button
+            id="btn-notes-new-empty"
             onClick={handleOpenNew}
             className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all"
           >
@@ -466,12 +520,13 @@ export const NotesView: React.FC<NotesViewProps> = ({
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div id="notes-grid-container" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredNotes.map((note) => {
             const colorCfg = COLOR_MAP[note.color] || COLOR_MAP.emerald;
             return (
               <motion.div
                 key={note.id}
+                id={`note-card-${note.id}`}
                 layout
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -481,13 +536,14 @@ export const NotesView: React.FC<NotesViewProps> = ({
                 {/* Card Top Header */}
                 <div>
                   <div className="flex items-start justify-between gap-3 mb-3">
-                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${colorCfg.badgeBg} ${colorCfg.badgeText} border border-slate-800/50`}>
+                    <span id={`note-badge-${note.id}`} className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${colorCfg.badgeBg} ${colorCfg.badgeText} border border-slate-800/50`}>
                       {note.category || 'Geral'}
                     </span>
 
                     <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
                       <button
-                        onClick={() => handleTogglePin(note)}
+                        id={`btn-note-pin-${note.id}`}
+                        onClick={(e) => { e.stopPropagation(); handleTogglePin(note); }}
                         className={`p-1.5 rounded-lg transition-colors ${
                           note.isPinned 
                             ? 'text-amber-400 bg-amber-500/10 border border-amber-500/20' 
@@ -498,14 +554,16 @@ export const NotesView: React.FC<NotesViewProps> = ({
                         <Pin size={14} className={note.isPinned ? 'fill-amber-400' : ''} />
                       </button>
                       <button
-                        onClick={() => handleOpenEdit(note)}
+                        id={`btn-note-edit-${note.id}`}
+                        onClick={(e) => { e.stopPropagation(); handleOpenEdit(note); }}
                         className="p-1.5 text-slate-500 hover:text-emerald-400 hover:bg-slate-800 rounded-lg transition-colors"
                         title="Editar"
                       >
                         <Edit3 size={14} />
                       </button>
                       <button
-                        onClick={() => handleDeleteNote(note.id, note.supabaseId)}
+                        id={`btn-note-delete-${note.id}`}
+                        onClick={(e) => { e.stopPropagation(); handleDeleteNote(note.id, note.supabaseId); }}
                         className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors"
                         title="Excluir"
                       >
@@ -516,7 +574,8 @@ export const NotesView: React.FC<NotesViewProps> = ({
 
                   {/* Note Title */}
                   <h3 
-                    onClick={() => setViewingNote(note)}
+                    id={`note-title-${note.id}`}
+                    onClick={(e) => { e.stopPropagation(); setViewingNote(note); }}
                     className="text-base font-black text-white hover:text-emerald-400 transition-colors cursor-pointer line-clamp-1 mb-2 tracking-tight"
                   >
                     {note.title}
@@ -524,7 +583,8 @@ export const NotesView: React.FC<NotesViewProps> = ({
 
                   {/* Note Content Excerpt */}
                   <p 
-                    onClick={() => setViewingNote(note)}
+                    id={`note-content-${note.id}`}
+                    onClick={(e) => { e.stopPropagation(); setViewingNote(note); }}
                     className="text-xs text-slate-400 line-clamp-4 leading-relaxed cursor-pointer font-sans whitespace-pre-wrap"
                   >
                     {note.content}
@@ -540,21 +600,24 @@ export const NotesView: React.FC<NotesViewProps> = ({
 
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => handleCopyNote(note)}
+                      id={`btn-note-copy-${note.id}`}
+                      onClick={(e) => { e.stopPropagation(); handleCopyNote(note); }}
                       className="p-1 text-slate-500 hover:text-slate-200 transition-colors flex items-center gap-1"
                       title="Copiar texto"
                     >
                       {copiedId === note.id ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
                     </button>
                     <button
-                      onClick={() => handleDownloadNote(note)}
+                      id={`btn-note-download-${note.id}`}
+                      onClick={(e) => { e.stopPropagation(); handleDownloadNote(note); }}
                       className="p-1 text-slate-500 hover:text-slate-200 transition-colors"
                       title="Baixar em arquivo .txt"
                     >
                       <Download size={12} />
                     </button>
                     <button
-                      onClick={() => setViewingNote(note)}
+                      id={`btn-note-view-${note.id}`}
+                      onClick={(e) => { e.stopPropagation(); setViewingNote(note); }}
                       className="text-emerald-400 font-bold hover:underline flex items-center gap-0.5 ml-1"
                     >
                       Ver <ChevronRight size={12} />

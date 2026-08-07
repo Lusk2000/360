@@ -1,13 +1,79 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="robots" content="index, follow" />
+    
+    <!-- Metadados de SEO Principal -->
+    <title>Gestão 360 - Sistema Integrado de Gestão Empresarial e Financeira</title>
+    <meta name="description" content="Gestão 360 é uma plataforma completa de gestão empresarial: controle financeiro, gestão de clientes (CRM), catálogo de serviços, agenda inteligente, fluxo de tarefas, ponto eletrônico e bloco de anotações." />
+    <meta name="keywords" content="gestao 360, controle financeiro, crm de clientes, gestao de tarefas, agenda empresarial, ponto eletronico, relatorios financeiros, anotacoes empresariais" />
+    <meta name="author" content="Gestão 360" />
+    <meta name="theme-color" content="#0f172a" />
+
+    <!-- Open Graph / Facebook / WhatsApp -->
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:site_name" content="Gestão 360" />
+    <meta property="og:title" content="Gestão 360 - Sistema Integrado de Gestão Empresarial" />
+    <meta property="og:description" content="Controle financeiro, CRM de clientes, agendamentos, tarefas, controle de ponto e anotações em uma única plataforma integrada." />
+
+    <!-- Twitter Cards -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Gestão 360 - Plataforma de Gestão Empresarial" />
+    <meta name="twitter:description" content="Sistema empresarial completo com controle financeiro, CRM, agenda, tarefas e registro de ponto eletrônico." />
+
+    <!-- Favicon -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%2310b981%22/><text x=%2250%22 y=%2250%22 font-family=%22sans-serif%22 font-weight=%22bolder%22 font-size=%2270%22 text-anchor=%22middle%22 dominant-baseline=%22central%22 fill=%22%230f172a%22>G</text></svg>">
-    <title>Gestão 360</title>
+
+    <!-- Schema.org Dados Estruturados (JSON-LD) para Rastreadores e Mecanismos de Busca -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Gestão 360",
+      "operatingSystem": "Web",
+      "applicationCategory": "BusinessApplication",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "BRL"
+      },
+      "description": "Sistema completo de gestão empresarial com módulos de Finanças, CRM de Clientes, Serviços, Agenda, Tarefas, Ponto Eletrônico e Anotações.",
+      "featureList": [
+        "Controle Financeiro e DRE",
+        "CRM e Cadastro de Clientes",
+        "Gestão de Serviços e Tabela de Preços",
+        "Agenda de Compromissos",
+        "Gerenciador de Tarefas e Resumos Diários",
+        "Ponto Eletrônico com Geolocalização",
+        "Bloco de Anotações com Sincronização"
+      ]
+    }
+    </script>
   </head>
-  <body>
-    <div id="root"></div>
+  <body class="bg-slate-950 text-slate-100 antialiased">
+    <div id="root">
+      <!-- Conteúdo semântico inicial acessível para motores de busca antes da hidratação do React -->
+      <main class="p-6 max-w-4xl mx-auto hidden">
+        <header>
+          <h1>Gestão 360 - Sistema Integrado de Gestão Empresarial</h1>
+          <p>Plataforma para controle financeiro, CRM de clientes, agendamento de serviços, controle de ponto e tarefas.</p>
+        </header>
+        <section>
+          <h2>Principais Módulos do Sistema</h2>
+          <ul>
+            <li><strong>Gestão Financeira:</strong> Lançamentos de receitas, despesas, relatórios e controle de caixa.</li>
+            <li><strong>CRM de Clientes:</strong> Gerenciamento completo de contatos, histórico e vendas.</li>
+            <li><strong>Agenda e Agendamentos:</strong> Marque e acompanhe compromissos e atendimento a clientes.</li>
+            <li><strong>Gestão de Tarefas:</strong> Checklist, acompanhamento de pendências e resumos diários.</li>
+            <li><strong>Ponto Eletrônico:</strong> Registro de jornada de trabalho com fotos e localização.</li>
+            <li><strong>Anotações:</strong> Bloco de notas rápido para organizar ideias e procedimentos.</li>
+          </ul>
+        </section>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

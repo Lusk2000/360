@@ -2748,12 +2748,26 @@ export default function App() {
     }
   }, [user]);
 
+  // Prevenção global de erros de rede de travar a aplicação
+  useEffect(() => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const msg = event.reason?.message || String(event.reason || '');
+      if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('Load failed')) {
+        console.warn('Erro de conexão interceptado:', msg);
+        event.preventDefault();
+      }
+    };
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    return () => window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+  }, []);
+
   // Auth Observer
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
+    supabase.auth.getSession().then(({ data, error }: any) => {
+      const session = data?.session;
       if (error) {
-        if(error.message === 'Failed to fetch') { console.warn('Erro na sessão inicial:', error.message); } else { console.error('Erro na sessão inicial:', error.message); }
-        setAuthError(`Falha na conexão: ${error.message}`);
+        console.warn('Erro na sessão inicial:', error.message || error);
+        setAuthError(`Falha na conexão: ${error.message || 'Erro de rede'}`);
       }
       
       const u = session?.user ?? null;
@@ -2775,11 +2789,11 @@ export default function App() {
       }
       setLoading(false);
     }).catch((err: any) => {
-      if(err?.message === 'Failed to fetch') { console.warn('Erro ao obter sessão:', err); } else { console.error('Erro ao obter sessão:', err); }
+      console.warn('Erro ao obter sessão:', err?.message || err);
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       console.log('Evento Supabase Auth:', _event, session?.user?.email);
       const u = session?.user ?? null;
       setUser(u);
@@ -2807,7 +2821,7 @@ export default function App() {
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => authListener?.subscription?.unsubscribe();
   }, []);
 
   // Funções de Fetch de Dados REUTILIZÁVEIS
@@ -2969,7 +2983,7 @@ export default function App() {
               setter(data || []);
             }
           }
-          if (connectionError && !collectionName) setConnectionError(null);
+          if (connectionError) setConnectionError(null);
         }
       } catch (e: any) {
         if (e?.message?.includes('Failed to fetch')) {
@@ -3702,35 +3716,39 @@ export default function App() {
         payload.data = null;
       }
       if (!editingId) payload.created_at = new Date().toISOString();
-      console.log('Sending payload:', JSON.stringify(payload));
-
       if (editingId) {
         const { error, status } = await supabase.from(collectionName).update(payload).eq('id', editingId);
-          if (error) {
-            if (status === 401 || error.code === 'PGRST303') {
-              const { data: refreshData } = await supabase.auth.getSession();
-              if (!refreshData.session) logout();
-            }
-            throw error;
+        if (error) {
+          if (status === 401 || error.code === 'PGRST303') {
+            const { data: refreshData } = await supabase.auth.getSession();
+            if (!refreshData.session) logout();
           }
-        } else {
-          const { error, status } = await supabase.from(collectionName).insert(payload);
-          if (error) {
-            if (status === 401 || error.code === 'PGRST303') {
-              const { data: refreshData } = await supabase.auth.getSession();
-              if (!refreshData.session) logout();
-            }
-            throw error;
-          }
+          throw error;
         }
-        // Explicit fetch after success to guarantee UI update
-        fetchCollections(collectionName);
+      } else {
+        const { error, status } = await supabase.from(collectionName).insert(payload);
+        if (error) {
+          if (status === 401 || error.code === 'PGRST303') {
+            const { data: refreshData } = await supabase.auth.getSession();
+            if (!refreshData.session) logout();
+          }
+          throw error;
+        }
+      }
+      // Explicit fetch after success to guarantee UI update
+      fetchCollections(collectionName);
     } catch (err: any) {
-      if(err?.message === "Failed to fetch" || err?.message?.includes("Failed to fetch")) { console.warn("Erro ao salvar:", JSON.stringify(err)); } else { console.error("Erro ao salvar:", JSON.stringify(err)); } alert("Erro ao salvar: " + (err.message || JSON.stringify(err)) + " | Code: " + err.code + " | Details: " + err.details);
+      const errorMsg = err?.message || 'Falha ao salvar os dados.';
+      if (err?.message?.includes('Failed to fetch')) {
+        console.warn('Erro de conexão ao salvar:', err);
+      } else {
+        console.error('Erro ao salvar:', err);
+      }
+      alert(`Erro ao salvar: ${errorMsg}`);
       if (err.code === 'PGRST204') {
-        setConnectionError(`Erro de Cache/Esquema: O Supabase ainda não reconheceu as novas colunas (como 'hora' ou 'titulo'). Execute o script SQL no dashboard do Supabase e use 'NOTIFY pgrst, "reload schema";'`);
+        setConnectionError(`Erro de Cache/Esquema: O Supabase ainda não reconheceu as novas colunas. Recarregue a página.`);
       } else if (err.code === 'PGRST205' || err.code === '42P01') {
-        setConnectionError(`Erro: A tabela atual não existe no banco de dados. Crie-a no Supabase.`);
+        setConnectionError(`Erro: A tabela atual não existe no banco de dados.`);
       }
     } finally {
       setIsModalOpen(false);
@@ -4093,7 +4111,11 @@ export default function App() {
                       </div>
                     </div>
                     <Button onClick={() => { 
-                      supabase.from('transactions').update({ status: 'paid' }).eq('id', notif.id).then(() => fetchCollections('transactions'), (err: any) => { if(err?.message?.includes('Failed to fetch')) console.warn(err); else console.error(err); }); 
+                      supabase.from('transactions').update({ status: 'paid' }).eq('id', notif.id)
+                        .then(
+                          () => fetchCollections('transactions'),
+                          (err: any) => console.warn('Erro ao atualizar transação:', err?.message || err)
+                        ); 
                     }} variant="danger" className="shrink-0 bg-red-500 text-slate-950 hover:bg-red-400 uppercase tracking-widest text-[10px] py-2 px-4 shadow-[0_0_15px_rgba(239,68,68,0.5)]">
                       Marcar como Pago
                     </Button>
@@ -4393,7 +4415,11 @@ export default function App() {
                                         
                                         if (!permissions.canEdit('tasks')) return;
                                         const newStatus = isDone ? 'pending' : 'done';
-                                        supabase.from('tasks').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', task.id).then(() => fetchCollections('tasks'), (err: any) => { if(err?.message?.includes('Failed to fetch')) console.warn(err); else console.error(err); });
+                                        supabase.from('tasks').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', task.id)
+                                          .then(
+                                            () => fetchCollections('tasks'),
+                                            (err: any) => console.warn('Erro ao atualizar tarefa:', err?.message || err)
+                                          );
                                       }}
                                       disabled={!permissions.canEdit('tasks')}
                                       className={`flex-shrink-0 mt-1 sm:mt-0 w-6 h-6 rounded flex items-center justify-center border-2 transition-all active:scale-90 ${
