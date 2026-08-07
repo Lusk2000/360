@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Plus, Search, Edit3, Trash2, Pin, Check, Copy, Download, 
-  FileText, Tag, Calendar, Sparkles, Filter, X, Eye, ChevronRight
+  FileText, Tag, Calendar, Sparkles, Filter, X, Eye, ChevronRight,
+  Crown, Briefcase, TrendingUp, GraduationCap, Compass, Users,
+  ShieldCheck, ClipboardCheck, AlertTriangle, Sliders, Award, BookOpen,
+  Target, CheckSquare, Zap, Building2, PieChart, Activity
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -18,7 +21,275 @@ export interface Note {
   supabaseId?: string;
 }
 
-const CATEGORIES = ['Geral', 'Finanças', 'Contabilidade', 'Impostos', 'Lembretes', 'Urgente'];
+export type NoteProfileRole = 'ceo' | 'mentor' | 'qualidade' | 'geral';
+
+export const getNoteProfileRole = (profileKey: string, userObj?: any, userProfilesObj?: any): NoteProfileRole => {
+  const profile = userProfilesObj?.[profileKey];
+  const label = (profile?.label || profileKey || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const email = (profile?.email || userObj?.email || profileKey || '').toLowerCase();
+
+  // CEO / Administrativo: Núbia, Lucas, Luan
+  if (
+    label.includes('nubia') || label.includes('lucas') || label.includes('luan') ||
+    email.includes('nubia') || email.includes('lucas') || email.includes('luan') ||
+    label.includes('ceo') || label.includes('diretoria')
+  ) {
+    return 'ceo';
+  }
+
+  // Mentor: CAE / Caetano
+  if (
+    label.includes('cae') || label.includes('caetano') || email.includes('caetano') ||
+    label.includes('mentor')
+  ) {
+    return 'mentor';
+  }
+
+  // Gestor de Qualidade: Vagner
+  if (
+    label.includes('vagner') || email.includes('vagner') ||
+    label.includes('qualidade') || label.includes('sgq')
+  ) {
+    return 'qualidade';
+  }
+
+  return 'geral';
+};
+
+const ROLE_CONFIGS: Record<NoteProfileRole, {
+  role: NoteProfileRole;
+  badge: string;
+  badgeColor: string;
+  titleSuffix: string;
+  subtitle: (userName: string) => string;
+  categories: string[];
+  defaultCategory: string;
+  bannerGradient: string;
+  accentColor: string;
+  primaryButtonBg: string;
+  iconBg: string;
+  iconColor: string;
+  mainIcon: React.ElementType;
+  templates: {
+    id: string;
+    label: string;
+    description: string;
+    category: string;
+    color: string;
+    title: string;
+    content: string;
+    icon: React.ElementType;
+  }[];
+}> = {
+  ceo: {
+    role: 'ceo',
+    badge: 'CEO & Diretoria Executiva',
+    badgeColor: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+    titleSuffix: 'Executivas & Gestão',
+    subtitle: (userName) => `Painel executivo exclusivo de ${userName}. Foco em diretrizes de alto nível, investimentos, metas globais, decisões de diretoria e governança.`,
+    categories: ['Todas', 'Decisões Estratégicas', 'Metas Globais', 'Finanças & Diretoria', 'Governança & Adm', 'Investimentos', 'Geral'],
+    defaultCategory: 'Decisões Estratégicas',
+    bannerGradient: 'from-slate-900 via-amber-950/20 to-purple-950/30 border-amber-500/30',
+    accentColor: 'amber',
+    primaryButtonBg: 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-[0_0_25px_rgba(245,158,11,0.25)]',
+    iconBg: 'bg-amber-500/10 border-amber-500/20',
+    iconColor: 'text-amber-400',
+    mainIcon: Crown,
+    templates: [
+      {
+        id: 'ata_diretoria',
+        label: 'Ata de Diretoria',
+        description: 'Reunião executiva e deliberações',
+        category: 'Decisões Estratégicas',
+        color: 'amber',
+        title: 'Ata de Reunião de Diretoria - [Data]',
+        content: `📌 PAUTA DA REUNIÃO:\n1. \n2. \n\n🎯 DECISÕES E DELIBERAÇÕES TOMADAS:\n- \n- \n\n👤 RESPONSÁVEIS E METAS:\n- Responsável: \n- Prazo: \n\n💰 IMPACTO FINANCEIRO / ORÇAMENTÁRIO:\n- Valor estimado: R$ \n- Parecer: Aprovado`,
+        icon: Crown
+      },
+      {
+        id: 'plan_estrategico',
+        label: 'Planejamento Estratégico',
+        description: 'OKRs e metas de longo prazo',
+        category: 'Metas Globais',
+        color: 'purple',
+        title: 'Planejamento Estratégico - [Trimestre/Ano]',
+        content: `🚀 OBJETIVOS ESTRATÉGICOS GLOBAIS:\n1. \n2. \n\n📈 OKRs E INDICADORES DE SUCESSO:\n- Metric 1: \n- Metric 2: \n\n💵 ALOCAÇÃO DE RECURSOS:\n- Budget Aprovado: R$ \n\n🗓️ CRONOGRAMA DE EXECUÇÃO:\n- Q1: \n- Q2: `,
+        icon: TrendingUp
+      },
+      {
+        id: 'diretriz_adm',
+        label: 'Diretriz Administrativa',
+        description: 'Políticas e regras de gestão',
+        category: 'Governança & Adm',
+        color: 'emerald',
+        title: 'Diretriz Administrativa - [Assunto]',
+        content: `📋 ESCOPO E APLICAÇÃO:\n- Setores / Colaboradores afetados: \n\n📜 REGRA / DIRETRIZ:\n1. \n2. \n\n⚠️ INSTRUÇÕES DE CUMPRIMENTO:\n- Data de início de vigência: \n- Responsável pela fiscalização: `,
+        icon: Briefcase
+      },
+      {
+        id: 'decisao_investimento',
+        label: 'Decisão de Investimento',
+        description: 'Análise de orçamento e ROI',
+        category: 'Investimentos',
+        color: 'blue',
+        title: 'Análise de Investimento - [Projeto]',
+        content: `💵 VALOR SOLICITADO: R$ \n\n📊 RETORNO ESPERADO (ROI):\n- \n\n⚖️ ANÁLISE DE RISCO:\n- Risco Principal: \n- Mitigação: \n\n✅ STATUS:\n- [ ] Aprovado pela Diretoria`,
+        icon: Building2
+      }
+    ]
+  },
+  mentor: {
+    role: 'mentor',
+    badge: 'Mentor & Desenvolvimento de Pessoas',
+    badgeColor: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+    titleSuffix: 'Mentoria & Orientação',
+    subtitle: (userName) => `Painel de mentoria exclusivo de ${userName}. Foco em Planos de Desenvolvimento (PDI), sessões de mentoria, feedback estruturado e acompanhamento de carreira.`,
+    categories: ['Todas', 'Planos de PDI', 'Sessão de Mentoria', 'Feedback & Acompanhamento', 'Direcionamento', 'Metas Pessoais', 'Geral'],
+    defaultCategory: 'Sessão de Mentoria',
+    bannerGradient: 'from-slate-900 via-purple-950/20 to-cyan-950/30 border-purple-500/30',
+    accentColor: 'purple',
+    primaryButtonBg: 'bg-purple-500 hover:bg-purple-400 text-slate-950 shadow-[0_0_25px_rgba(168,85,247,0.25)]',
+    iconBg: 'bg-purple-500/10 border-purple-500/20',
+    iconColor: 'text-purple-400',
+    mainIcon: GraduationCap,
+    templates: [
+      {
+        id: 'plano_pdi',
+        label: 'Plano de PDI',
+        description: 'Desenvolvimento individual do mentorado',
+        category: 'Planos de PDI',
+        color: 'purple',
+        title: 'PDI - [Nome do Mentorado]',
+        content: `👤 MENTORADO(A): \n📅 PERÍODO DE ACOMPANHAMENTO: \n\n⭐ PONTOS FORTES ATUAIS:\n1. \n2. \n\n🎯 OPORTUNIDADES DE DESENVOLVIMENTO:\n1. \n2. \n\n🚀 PLANO DE AÇÃO (O QUE / COMO / QUANDO):\n- Ação 1: \n- Ação 2: \n\n📊 MÉTRICA DE SUCESSO:\n- `,
+        icon: GraduationCap
+      },
+      {
+        id: 'sessao_mentoria',
+        label: 'Sessão de Mentoria',
+        description: 'Ata de sessão e direcionamentos',
+        category: 'Sessão de Mentoria',
+        color: 'cyan',
+        title: 'Mentoria - [Mentorado] - [Data]',
+        content: `💡 TÓPICOS DISCUTIDOS:\n- \n- \n\n🧠 INSIGHTS E REFLEXÕES DISCUTIDAS:\n- \n\n🤝 COMPROMISSOS PARA O PRÓXIMO ENCONTRO:\n1. \n2. \n\n📅 PRÓXIMA SESSÃO: `,
+        icon: Compass
+      },
+      {
+        id: 'feedback_estruturado',
+        label: 'Feedback Estruturado',
+        description: 'Avaliação orientada e construtiva',
+        category: 'Feedback & Acompanhamento',
+        color: 'emerald',
+        title: 'Feedback - [Pessoa / Equipe]',
+        content: `📌 CONTEXTO E OBSERVAÇÕES:\n- \n\n👏 PONTOS POSITIVOS E DESTAQUES:\n- \n\n💡 OPORTUNIDADES DE EVOLUÇÃO:\n- \n\n🎯 EXPECTATIVAS E PRÓXIMOS PASSOS:\n- `,
+        icon: Users
+      },
+      {
+        id: 'direcionamento_carreira',
+        label: 'Direcionamento de Carreira',
+        description: 'Metas e soft/hard skills',
+        category: 'Direcionamento',
+        color: 'amber',
+        title: 'Alinhamento de Carreira - [Mentorado]',
+        content: `🔮 OBJETIVOS DE MÉDIO / LONGO PRAZO:\n- \n\n🛠️ HABILIDADES A DESENVOLVER:\n- Hard Skills: \n- Soft Skills: \n\n📚 RECOMENDAÇÕES (LIVROS/CURSOS):\n- `,
+        icon: BookOpen
+      }
+    ]
+  },
+  qualidade: {
+    role: 'qualidade',
+    badge: 'Gestor de Qualidade & SGQ',
+    badgeColor: 'bg-teal-500/10 text-teal-400 border-teal-500/30',
+    titleSuffix: 'Qualidade & Processos',
+    subtitle: (userName) => `Painel de gestão de qualidade exclusivo de ${userName}. Foco em auditorias internas, Não Conformidades (NC), procedimentos padrão (POPs), indicadores (KPIs) e melhoria contínua.`,
+    categories: ['Todas', 'Auditoria & Conformidade', 'Processos & POPs', 'Indicadores (KPIs)', 'Não Conformidades (NC)', 'Melhoria Contínua', 'Geral'],
+    defaultCategory: 'Auditoria & Conformidade',
+    bannerGradient: 'from-slate-900 via-teal-950/20 to-sky-950/30 border-teal-500/30',
+    accentColor: 'teal',
+    primaryButtonBg: 'bg-teal-500 hover:bg-teal-400 text-slate-950 shadow-[0_0_25px_rgba(20,184,166,0.25)]',
+    iconBg: 'bg-teal-500/10 border-teal-500/20',
+    iconColor: 'text-teal-400',
+    mainIcon: ShieldCheck,
+    templates: [
+      {
+        id: 'auditoria_interna',
+        label: 'Relatório de Auditoria',
+        description: 'Verificação de processos e evidências',
+        category: 'Auditoria & Conformidade',
+        color: 'teal',
+        title: 'Auditoria Interna - [Processo/Setor]',
+        content: `🔎 ESCOPO DA AUDITORIA:\n- Processo / Setor: \n- Auditor responsável: Vagner\n- Data: \n\n✅ CONFORMIDADES CONSTATADAS:\n1. \n2. \n\n⚠️ ACHADOS / OPORTUNIDADES DE MELHORIA:\n1. \n2. \n\n📋 PARECER FINAL:\n- Conforme / Necessita Ação Corretiva`,
+        icon: ClipboardCheck
+      },
+      {
+        id: 'nao_conformidade_rnc',
+        label: 'Registro de NC (RNC)',
+        description: 'Análise de causa raiz e 5 Porquês',
+        category: 'Não Conformidades (NC)',
+        color: 'rose',
+        title: 'RNC #[Número] - [Descrição do Desvio]',
+        content: `🚨 DESCRIÇÃO DA NÃO CONFORMIDADE:\n- \n\n🔍 ANÁLISE DE CAUSA RAIZ (5 PORQUÊS):\n1. Por que ocorreu? \n2. Por que? \n3. Por que? \n\n🛠️ AÇÃO CORRETIVA E PREVENTIVA:\n- \n\n⏱️ PRAZO E RESPONSÁVEL:\n- Responsável: \n- Prazo final: `,
+        icon: AlertTriangle
+      },
+      {
+        id: 'processo_pop',
+        label: 'Procedimento POP',
+        description: 'Mapeamento de processo padrão',
+        category: 'Processos & POPs',
+        color: 'blue',
+        title: 'POP #[CÓDIGO] - [Nome do Processo]',
+        content: `🎯 OBJETIVO DO PROCEDIMENTO:\n- \n\n👤 RESPONSÁVEL PELA EXECUÇÃO:\n- \n\n📝 PASSO A PASSO DETALHADO:\n1. \n2. \n3. \n\n🚨 CRITÉRIOS DE ACEITAÇÃO / CONTROLE:\n- `,
+        icon: Sliders
+      },
+      {
+        id: 'analise_kpi',
+        label: 'Análise de KPI',
+        description: 'Desvios de metas e ações',
+        category: 'Indicadores (KPIs)',
+        color: 'amber',
+        title: 'Análise de Indicador (KPI) - [Mês/Setor]',
+        content: `📊 INDICADOR ANALISADO:\n- Meta Estabelecida: \n- Resultado Medido: \n\n📈 ANÁLISE DO DESVIO:\n- \n\n🚀 PLANO DE AÇÃO PARA RECUPERAÇÃO:\n1. \n2. `,
+        icon: Activity
+      }
+    ]
+  },
+  geral: {
+    role: 'geral',
+    badge: 'Bloco de Notas Privado',
+    badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+    titleSuffix: 'Pessoais & Lembretes',
+    subtitle: (userName) => `Aba de anotações exclusiva de ${userName}. Suas anotações são privativas e sincronizadas apenas com o seu usuário.`,
+    categories: ['Todas', 'Geral', 'Finanças', 'Contabilidade', 'Impostos', 'Lembretes', 'Urgente'],
+    defaultCategory: 'Geral',
+    bannerGradient: 'from-slate-900 via-slate-900/90 to-emerald-950/40 border-slate-800',
+    accentColor: 'emerald',
+    primaryButtonBg: 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-[0_0_25px_rgba(16,185,129,0.25)]',
+    iconBg: 'bg-emerald-500/10 border-emerald-500/20',
+    iconColor: 'text-emerald-400',
+    mainIcon: FileText,
+    templates: [
+      {
+        id: 'lembrete_geral',
+        label: 'Lembrete Rápido',
+        description: 'Tarefas e anotações do dia a dia',
+        category: 'Lembretes',
+        color: 'emerald',
+        title: 'Lembrete - [Assunto]',
+        content: `📌 NOTA RÁPIDA:\n- \n\n⏰ PRAZO OU DATA HORA:\n- `,
+        icon: Zap
+      },
+      {
+        id: 'resumo_financeiro',
+        label: 'Resumo Financeiro',
+        description: 'Observações de caixa e pagamentos',
+        category: 'Finanças',
+        color: 'amber',
+        title: 'Observação Financeira - [Data]',
+        content: `💵 MOVIMENTAÇÃO / RESUMO:\n- \n\n⚠️ PONTOS DE ATENÇÃO:\n- `,
+        icon: PieChart
+      }
+    ]
+  }
+};
 
 const COLOR_MAP: Record<string, { bg: string; border: string; text: string; badgeBg: string; badgeText: string }> = {
   emerald: {
@@ -48,6 +319,20 @@ const COLOR_MAP: Record<string, { bg: string; border: string; text: string; badg
     text: 'text-purple-400',
     badgeBg: 'bg-purple-500/10',
     badgeText: 'text-purple-400',
+  },
+  cyan: {
+    bg: 'bg-cyan-950/20',
+    border: 'border-cyan-500/30',
+    text: 'text-cyan-400',
+    badgeBg: 'bg-cyan-500/10',
+    badgeText: 'text-cyan-400',
+  },
+  teal: {
+    bg: 'bg-teal-950/20',
+    border: 'border-teal-500/30',
+    text: 'text-teal-400',
+    badgeBg: 'bg-teal-500/10',
+    badgeText: 'text-teal-400',
   },
   rose: {
     bg: 'bg-rose-950/20',
@@ -91,10 +376,14 @@ export const NotesView: React.FC<NotesViewProps> = ({
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [viewingNote, setViewingNote] = useState<Note | null>(null);
 
+  // Profile Role Configuration
+  const profileRole = useMemo(() => getNoteProfileRole(currentUserProfile, user, USER_PROFILES), [currentUserProfile, user, USER_PROFILES]);
+  const roleConfig = useMemo(() => ROLE_CONFIGS[profileRole], [profileRole]);
+
   // Modal Form State
   const [formTitle, setFormTitle] = useState('');
   const [formContent, setFormContent] = useState('');
-  const [formCategory, setFormCategory] = useState('Finanças');
+  const [formCategory, setFormCategory] = useState(roleConfig.defaultCategory);
   const [formColor, setFormColor] = useState('emerald');
   const [formIsPinned, setFormIsPinned] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -128,9 +417,35 @@ export const NotesView: React.FC<NotesViewProps> = ({
       return;
     }
 
-    // Extract notes from Supabase tasks table (tasks starting with [ANOTACAO])
+    const userLabel = USER_PROFILES[currentUserProfile]?.label;
+    const userEmail = USER_PROFILES[currentUserProfile]?.email || currentUserProfile;
+
+    const isNoteForCurrentUser = (t: any) => {
+      if (!t.titulo || !t.titulo.startsWith('[ANOTACAO]')) return false;
+      if (deletedIds.has(String(t.id))) return false;
+
+      const matchResp = t.responsavel && (
+        t.responsavel === currentUserProfile || 
+        t.responsavel === userEmail || 
+        (userLabel && t.responsavel.toLowerCase() === userLabel.toLowerCase())
+      );
+      const matchAttr = t.atribuido_a && (
+        t.atribuido_a === currentUserProfile || 
+        t.atribuido_a === userEmail || 
+        (userLabel && t.atribuido_a.toLowerCase() === userLabel.toLowerCase())
+      );
+      const matchEditor = t.editor_nome && userLabel && t.editor_nome.toLowerCase() === userLabel.toLowerCase();
+      const matchUserId = user?.id && t.user_id && t.user_id === user.id && userEmail === currentUserProfile;
+
+      if (matchResp || matchAttr || matchEditor) return true;
+      if (!t.responsavel && !t.atribuido_a && !t.editor_nome && matchUserId) return true;
+
+      return false;
+    };
+
+    // Extract notes from Supabase tasks table (tasks starting with [ANOTACAO]) belonging ONLY to current user/profile
     const dbNotes: Note[] = tasks
-      .filter((t: any) => t.titulo && t.titulo.startsWith('[ANOTACAO]') && !deletedIds.has(String(t.id)))
+      .filter(isNoteForCurrentUser)
       .map((t: any) => {
         let title = t.titulo.replace('[ANOTACAO]', '').trim();
         let category = 'Finanças';
@@ -185,7 +500,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
     } catch (e) {
       console.warn('Erro ao salvar local storage:', e);
     }
-  }, [tasks, localKey, currentUserProfile]);
+  }, [tasks, localKey, currentUserProfile, user, USER_PROFILES]);
 
   // Save notes array to localStorage
   const saveLocalNotes = (updated: Note[]) => {
@@ -202,8 +517,19 @@ export const NotesView: React.FC<NotesViewProps> = ({
     setEditingNote(null);
     setFormTitle('');
     setFormContent('');
-    setFormCategory('Finanças');
-    setFormColor('emerald');
+    setFormCategory(roleConfig.defaultCategory);
+    setFormColor(roleConfig.accentColor || 'emerald');
+    setFormIsPinned(false);
+    setIsModalOpen(true);
+  };
+
+  // Apply a template preset
+  const handleApplyTemplate = (tmpl: typeof roleConfig.templates[0]) => {
+    setEditingNote(null);
+    setFormTitle(tmpl.title);
+    setFormContent(tmpl.content);
+    setFormCategory(tmpl.category);
+    setFormColor(tmpl.color || roleConfig.accentColor);
     setFormIsPinned(false);
     setIsModalOpen(true);
   };
@@ -213,7 +539,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
     setEditingNote(note);
     setFormTitle(note.title);
     setFormContent(note.content);
-    setFormCategory(note.category || 'Finanças');
+    setFormCategory(note.category || roleConfig.defaultCategory);
     setFormColor(note.color || 'emerald');
     setFormIsPinned(note.isPinned || false);
     setIsModalOpen(true);
@@ -402,42 +728,85 @@ export const NotesView: React.FC<NotesViewProps> = ({
   }, [notes, searchTerm, selectedCategory]);
 
   const userName = USER_PROFILES[currentUserProfile]?.label || 'Renata';
+  const MainIcon = roleConfig.mainIcon;
 
   return (
     <div className="space-y-6 pb-20 max-w-7xl mx-auto">
-      {/* Top Banner / Header */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-900/90 to-emerald-950/40 p-6 sm:p-8 rounded-3xl border border-slate-800 shadow-2xl relative overflow-hidden">
-        <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-emerald-500/5 blur-3xl pointer-events-none" />
+      {/* Top Banner / Header Customized per Role */}
+      <div className={`bg-gradient-to-r ${roleConfig.bannerGradient} p-6 sm:p-8 rounded-3xl border shadow-2xl relative overflow-hidden`}>
+        <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-white/5 blur-3xl pointer-events-none" />
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative z-10">
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shadow-lg">
-                <FileText size={24} />
+              <div className={`w-12 h-12 rounded-2xl ${roleConfig.iconBg} flex items-center justify-center shadow-lg`}>
+                <MainIcon size={24} className={roleConfig.iconColor} />
               </div>
               <div>
-                <span className="text-[10px] font-black uppercase tracking-[0.25em] text-emerald-500 block">
-                  Bloco de Notas & Controle
+                <span className={`text-[10px] font-black uppercase tracking-[0.2em] px-2.5 py-1 rounded-full border inline-block mb-1 ${roleConfig.badgeColor}`}>
+                  {roleConfig.badge}
                 </span>
                 <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
                   Anotações de {userName}
                 </h1>
               </div>
             </div>
-            <p className="text-xs sm:text-sm text-slate-400 max-w-xl">
-              Registre observações financeiras, lembretes contábeis, instruções de relatórios e resumos operacionais com sincronização automática.
+            <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
+              {roleConfig.subtitle(userName)}
             </p>
           </div>
 
           <button
             id="btn-notes-new-top"
             onClick={handleOpenNew}
-            className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-6 py-4 rounded-2xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-[0_0_25px_rgba(16,185,129,0.25)] cursor-pointer group"
+            className={`w-full sm:w-auto font-black px-6 py-4 rounded-2xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer group ${roleConfig.primaryButtonBg}`}
           >
             <Plus size={18} className="group-hover:scale-110 transition-transform" />
             Nova Anotação
           </button>
         </div>
       </div>
+
+      {/* Role Preset Templates Bar */}
+      {roleConfig.templates.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
+              <Sparkles size={14} className={roleConfig.iconColor} /> Modelos Rápido & Presets de {userName}
+            </span>
+            <span className="text-[10px] text-slate-500 font-medium">Clique para abrir o modelo preenchido</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {roleConfig.templates.map(tmpl => {
+              const TmplIcon = tmpl.icon;
+              return (
+                <button
+                  key={tmpl.id}
+                  onClick={() => handleApplyTemplate(tmpl)}
+                  className="bg-slate-900/80 hover:bg-slate-800 border border-slate-800/80 hover:border-slate-700 p-4 rounded-2xl text-left transition-all duration-200 group flex flex-col justify-between space-y-3 cursor-pointer shadow-md hover:shadow-lg hover:-translate-y-0.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="p-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 group-hover:text-white transition-colors">
+                      <TmplIcon size={18} />
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-500 group-hover:text-slate-300 flex items-center gap-1 transition-colors">
+                      Usar <ChevronRight size={12} />
+                    </span>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-white group-hover:text-amber-300 transition-colors">
+                      {tmpl.label}
+                    </h4>
+                    <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5 font-normal">
+                      {tmpl.description}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Controls Bar: Search & Category Filter */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-slate-900/60 p-4 rounded-2xl border border-slate-800/80 backdrop-blur-md">
@@ -450,7 +819,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
             placeholder="Pesquisar por título, conteúdo ou tag..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50 transition-all font-medium"
+            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-500/50 transition-all font-medium"
           />
           {searchTerm && (
             <button
@@ -465,19 +834,8 @@ export const NotesView: React.FC<NotesViewProps> = ({
 
         {/* Category Pills */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-          <button
-            id="btn-notes-cat-all"
-            onClick={() => setSelectedCategory('Todas')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all ${
-              selectedCategory === 'Todas'
-                ? 'bg-emerald-500 text-slate-950 shadow-md'
-                : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
-            }`}
-          >
-            Todas ({notes.length})
-          </button>
-          {CATEGORIES.map(cat => {
-            const count = notes.filter(n => n.category === cat).length;
+          {roleConfig.categories.map(cat => {
+            const count = cat === 'Todas' ? notes.length : notes.filter(n => n.category === cat).length;
             const isSel = selectedCategory === cat;
             return (
               <button
@@ -486,7 +844,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
                 onClick={() => setSelectedCategory(cat)}
                 className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all ${
                   isSel
-                    ? 'bg-emerald-500 text-slate-950 shadow-md'
+                    ? 'bg-amber-500 text-slate-950 shadow-md font-black'
                     : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
                 }`}
               >
@@ -687,9 +1045,9 @@ export const NotesView: React.FC<NotesViewProps> = ({
                     <select
                       value={formCategory}
                       onChange={(e) => setFormCategory(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-all font-medium"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-500 transition-all font-medium"
                     >
-                      {CATEGORIES.map(cat => (
+                      {roleConfig.categories.filter(c => c !== 'Todas').map(cat => (
                         <option key={cat} value={cat}>{cat}</option>
                       ))}
                     </select>

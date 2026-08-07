@@ -4353,6 +4353,7 @@ export default function App() {
                     {(() => {
                       const todayStr = getBRTDateString();
                       const filteredTasks = tasks.filter((t: any) => {
+                        if (t.titulo && t.titulo.startsWith('[ANOTACAO]')) return false;
                         if (taskFilterPerson !== 'all' && t.atribuido_a !== taskFilterPerson) return false;
                         
                         const isDone = t.status === 'done';
